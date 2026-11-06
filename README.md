@@ -1,118 +1,41 @@
-# RayVolt — E-Scooter Fleet-as-a-Service
+# RayVolt
 
-> **Plataforma de Gestão de Frota de Trotinetes Elétricas Inteligentes (TQS 2026/27)**  
-> *Mobilidade ligeira gerida por hubs, telemetria em tempo real e monitorização de regras urbanas.*
+> Valdren Works gets e-scooters for its workers and guards without owning a fleet: RayVolt supplies, maintains and runs them.
 
----
+## Project abstract
 
-## Abstract do Projeto
+RayVolt is an e-scooter service for Valdren Works, a fictional industrial complex so large that walking between
+departments wastes time. Valdren Works does not want to own or maintain a fleet, so it hires RayVolt, a fictional
+operator, under a contract with agreed service levels (SLAs). RayVolt supplies the scooters and takes care of
+maintenance, battery management and moving scooters between hubs.
 
-O **RayVolt** é uma solução completa de *Fleet-as-a-Service* (Frota de Mobilidade Ligeira como Serviço) desenhada para ..... A plataforma permite que utilizadores finais encontrem, desbloqueiem e utilizem trotinetes elétrica, enquanto os operadores gerem o ciclo de vida dos veículos, SLAs de manutenção e telemetria remota.
+Workers find scooters at hubs next to departments and gates, book one or start a trip right away, and end the trip
+at a hub. Security guards use them for their patrol rounds and get priority when scooters are short. Valdren Works sets
+the rules of use, such as how many scooters each department may book per shift, speed limits near hazard areas and
+which workers may use which scooter types, and follows the service through KPIs and SLA compliance. Contractors and
+visitors pay a deposit, and anyone who goes over the allowed time or damages a scooter is charged.
 
-A aplicação foi desenvolvida com foco prioritário em **Engenharia de Qualidade de Software (SQA)**, integração contínua (CI/CD), arquitetura hexagonal (Ports & Adapters) e testes determinísticos automatizados.
+**Concretization:** service pool (client: the company that owns the industrial complex; usage: work trips and
+security patrols between hubs inside the complex).
 
----
+## Project team
 
-## 👥 Equipa de Desenvolvimento
+| Name | Student no. | Role |
+|---|---|---|
+| Samuel Ramos | 124955 | Team Coordinator |
+| Francisco Santos | 126255 | Product Owner |
+| Kelvin Loforte | 121420 | QA Engineer |
+| Mario Santos | 127560 | DevOps Master |
 
-| Fotografia / Nome | Número | Papel Principal (Role) | Contacto / GitHub |
-| :--- | :---: | :--- | :--- |
-| **[ Nome Aluno 1 ]** | `[ Nº Aluno ]` | **Team Coordinator** & Developer | `[ @github3 ]` |
-| **[ Nome Aluno 2 ]** | `126255`  | **Product Owner** & Developer | `[ @github2 ]` |
-| **Kelvin Loforte** | `121420` | **QA Engineer** & Developer | `[ @github3 ]` |
-| **[ Nome Aluno 4 ]** | `[ Nº Aluno ]` | **DevOps Master** & Developer | `[ @github4 ]` |
+Every member is also a developer.
 
----
+## Project bookmarks
 
-## Project Bookmarks (Links Rápidos)
-
-* **Jira Backlog & Board:** [Link para o Board do Jira]
-* **Xray Test Management:** [Link para o Xray no Jira]
-* **Dashboard SonarQube:** [http://vm-tqs.deti.ua.pt:9000/dashboard?id=rayvolt]
-* **Aplicação Deployed (Production):** [http://deti-tqs-XX.ua.pt]
-* **Documentação da API (Swagger / OpenAPI):** [http://deti-tqs-XX.ua.pt/swagger-ui.html]
-* **Observabilidade & Métricas:** [http://deti-tqs-XX.ua.pt:3000]
-
----
-
-## Arquitetura do Sistema
-
-### Principais Decisões de Design para Qualidade:
-
-1. **Controlo Temporal Determinístico:** ...
-
-2. **Simulador de Telemetria (Container Separado):** ...
-
-3. **Concorrência de Alocação:** ...
-
-##  Casos de Uso & Atores
-
-| Ator | Canal | Ações Principais | 
-| ----- | ----- | ----- | 
-| **End User (Utilizador)** | Web App | Encontrar trotinetes por Hub (UC1), reservar/iniciar viagem, terminar viagem em Hub e consultar pagamentos/histórico. | 
-| **Operator (Operador)** | Backoffice | Registar veículos/hubs, gerir ciclo de vida (Available, In Use, Maintenance, Retired) e tratar tickets de reparação. | 
-| **Institutional Client** | Dashboard | Definir regras de uso (velocidades por zona, lotação de hubs) e acompanhar KPIs de SLA e utilização. | 
-| **Telemetria (MQTT)** | Service | Envio simulado do estado de bateria, coordenadas GPS e eventos de falha. | 
-
-## Stack Tecnológica
-
-* **Backend:**
-
-* **Base de Dados:** 
-
-* **Frontend:** 
-
-* **Telemetria:**
-
-* **Qualidade & CI/CD:** 
-
-## Como Executar o Projeto Localmente
-
-### Pré-requisitos
-
-* Docker & Docker Compose
-
-* JDK 21
-
-* Maven 3.9+
-
-### Passos para iniciar a aplicação e infraestrutura:
-
-
-## Execução dos Testes Automatizados
-
-| Categoria de Teste | Comando | Descrição / Ferramentas | 
-| ----- | ----- | ----- | 
-| **Unitários** | `./mvnw test` | Testa regras de negócio com JUnit 5 & Mockito. | 
-| **Integração** | `./mvnw verify ...` | Testes contra PostgreSQL real via **Testcontainers**. | 
-| **BDD / Aceitação** | `./mvnw verify ...` | Cenários Gherkin executados com **Cucumber**. | 
-| **End-to-End (E2E)** | `./mvnw ...` | Testes de UI automatizados com **Playwright**. | 
-| **Desempenho (SLO)** | `k6 run ...` | Testes de carga e validação de SLOs com **k6**. | 
-| **Cobertura & Cobertura** | `./mvnw ...` | Relatório JaCoCo enviado para o SonarQube. | 
-
-## Declaração de Uso de IA Generativa
-* 
-
-* 
-
-* 
-
-## Estrutura do Repositório
-
-```
-RayVolt/
-├── README.md                 # Este documento
-├── AGENTS.md                 # Diretivas e políticas para Agentes de IA
-├── docker-compose.yml        # Configuração dos serviços (DB, MQTT, App)
-├── pom.xml                   # Configuração Maven e dependências
-├── .github/
-│   └── workflows/            # CI/CD Pipelines (Build, Tests, Sonar, Deploy)
-├── docs/                     # Entregáveis de documentação
-│   ├── Product_Specification.pdf # Especificação de Requisitos e Arquitetura
-│   └── QA_Manual.pdf             # Manual de SQA e Tabela de Conformidade
-├── simulator/                # Container do Simulador de Telemetria de Frota
-└── src/
-    ├── main/                 # Código fonte da aplicação Spring Boot
-    └── test/                 # Suíte de testes (unit, integration, acceptance, functional)
-
-```
+| What | Link |
+|---|---|
+| Jira backlog | <https://ua-team-e2msb3m6.atlassian.net/jira/software/projects/PT/boards/2/backlog> |
+| Related repositories | none |
+| API documentation | not available yet |
+| Static analysis dashboard | not available yet |
+| Observability dashboard | not available yet |
+| Deployed application | not available yet |
