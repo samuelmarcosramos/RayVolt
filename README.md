@@ -40,22 +40,30 @@ Every member is also a developer.
 | Observability dashboard | not available yet |
 | Deployed application | not available yet |
 
-## SQA strategy and selected tools
+## SQA strategy and selected tools (Quality Assurance & Testing Toolset)
 
 The strategy follows the assignment's required practices while keeping the pull-request feedback loop practical.
 
-| Quality activity | Selected tools | Scope |
-|---|---|---|
-| Static analysis and coverage | **SonarQube + JaCoCo** | Publish code-quality and coverage results to the SonarQube dashboard. The quality gate checks new code and blocks a merge on failure. |
-| Dependency vulnerability scanning | **OWASP Dependency-Check** | Scan dependencies in CI on every build and fail the build according to the agreed vulnerability policy. |
-| Unit tests | **JUnit 5 (Jupiter) + Mockito** | Test business logic in isolation; keep these tests fast and run them on every push and pull request. |
-| Acceptance / BDD tests | **Cucumber** | Write core user-story acceptance criteria as Gherkin scenarios and automate them. |
-| Integration tests | **Spring Boot Test + Testcontainers** | Test API and persistence against real containerized dependencies such as PostgreSQL; test simulator and payment adapters at their integration boundaries. Run separately from unit tests. |
-| UI end-to-end tests | **Playwright** | Cover the critical web journeys. Run in a dedicated CI job (for example, on main or before a release), not on every build. |
-| Load and SLO tests | **k6** | Check documented SLO thresholds on a critical flow in a controlled environment, rather than in the fast pull-request test job. |
+| Layer / Phase | Tools & Stack | Purpose Pipeline Policy |
+| :--- | :--- | :--- |
+| **Static Analysis & Coverage (`Q1`, `Q2`)** | SonarQube + JaCoCo | Triggered on every push and PR. Enforces quality gates on new code and blocks merges if thresholds fail. |
+| **Dependency Security (`Q3`)** | Dependabot | Continuously audits project dependencies for CVEs and automatically opens PRs with version updates via `.github/dependabot.yml`. |
+| **Code Review (`Q4`)** | GitHub Pull Requests | Branch protection enforced on `main`. Requires at least one peer approval and passing status checks before merging. |
+| **AI Code Review (`AI3`)** | GitHub Copilot | Automated PR feedback on every pull request. A human reviewer always holds the final merge decision and logs accepted/rejected suggestions. |
+| **Unit Testing (`T2`)** | JUnit 6 (Jupiter) + Mockito + AssertJ | Fast, isolated tests targeting core domain logic (`*Test`). Executed on every commit via Maven Surefire (`mvn test`). |
+| **BDD / Acceptance (`T1`)** | Cucumber 8 + Gherkin | Translates user-story acceptance criteria into executable specifications (`Given/When/Then`) running on the JUnit Platform. |
+| **Integration Testing (`T3`)** | Spring Boot Test + Testcontainers | Isolated from unit tests (`*IT`). Validates REST contracts and persistence against a real PostgreSQL instance via Maven Failsafe (`mvn verify`). |
+| **E2E Web UI Testing (`T4`)** | Playwright | Executed on PRs targeting `main` or scheduled nightly runs. Verifies critical end-to-end user journeys in a real browser. |
+| **Load & SLO Testing (`T5`)** | k6 | Executed in a controlled staging environment (outside standard PR builds) to validate latency and throughput against defined SLOs. |
+| **Accessibility Audit (`T8`)** | Lighthouse | Runs against the deployed web interface to ensure compliance with minimum accessibility score thresholds. |
+| **Test Management (`PM5`)** | Jira + Xray | Links automated JUnit/Cucumber runs and manual exploratory charters directly to Jira stories for real-time requirement traceability. |
+| **Continuous Integration (`D2`)** | GitHub Actions | Automates build, test execution, and SonarQube checks on every push/PR, reporting build status via README badges and failure alerts. |
+| **Infrastructure as Code (`D3`)** | Docker Compose | Defines and orchestrates the full application stack (backend, frontend, PostgreSQL database, and supporting services) reproducibly. |
+| **Continuous Delivery (`D4`)** | GitHub Actions → VM | Automatically builds immutable container images and deploys every merge to `main` into the target environment with seeded data. |
+| **Observability (`D6`)** | OpenTelemetry + Grafana Stack | Collects metrics, structured logs, and distributed traces from production to monitor service health and error budgets. |
 
-### CI checks and merge policy
+### Key Practices Enforced in the Pipeline
 
-Every push and pull request should build the application, run unit and integration tests, scan dependencies, and publish SonarQube analysis with JaCoCo coverage. A failed build or quality gate blocks merging. The team should define the quality-gate thresholds and k6 SLOs in project configuration/specification rather than relying on unspecified defaults. Playwright and k6 run as dedicated validation jobs, not on every build.
-
-These are the selected tools; Maven plugins, CI jobs, and test profiles still need to be configured in the project.
+* **Shift-Left & Fast Feedback:** Fast unit tests and static analysis run on every push (`< 10 min`); heavier integration, BDD, and E2E suites run in subsequent pipeline stages.
+* **Branch Protection:** Direct pushes to `main` are blocked; pull requests require passing CI builds, a green SonarQube Quality Gate, and peer code review.
+* **Traceability & Living Documentation:** Gherkin scenarios and automated JUnit/Cucumber execution reports are synced to Xray in Jira to continuously track requirement coverage (`OK` / `NOK`) and release readiness.
