@@ -39,3 +39,23 @@ Every member is also a developer.
 | Static analysis dashboard | not available yet |
 | Observability dashboard | not available yet |
 | Deployed application | not available yet |
+
+## SQA strategy and selected tools
+
+The strategy follows the assignment's required practices while keeping the pull-request feedback loop practical.
+
+| Quality activity | Selected tools | Scope |
+|---|---|---|
+| Static analysis and coverage | **SonarQube + JaCoCo** | Publish code-quality and coverage results to the SonarQube dashboard. The quality gate checks new code and blocks a merge on failure. |
+| Dependency vulnerability scanning | **OWASP Dependency-Check** | Scan dependencies in CI on every build and fail the build according to the agreed vulnerability policy. |
+| Unit tests | **JUnit 5 (Jupiter) + Mockito** | Test business logic in isolation; keep these tests fast and run them on every push and pull request. |
+| Acceptance / BDD tests | **Cucumber** | Write core user-story acceptance criteria as Gherkin scenarios and automate them. |
+| Integration tests | **Spring Boot Test + Testcontainers** | Test API and persistence against real containerized dependencies such as PostgreSQL; test simulator and payment adapters at their integration boundaries. Run separately from unit tests. |
+| UI end-to-end tests | **Playwright** | Cover the critical web journeys. Run in a dedicated CI job (for example, on main or before a release), not on every build. |
+| Load and SLO tests | **k6** | Check documented SLO thresholds on a critical flow in a controlled environment, rather than in the fast pull-request test job. |
+
+### CI checks and merge policy
+
+Every push and pull request should build the application, run unit and integration tests, scan dependencies, and publish SonarQube analysis with JaCoCo coverage. A failed build or quality gate blocks merging. The team should define the quality-gate thresholds and k6 SLOs in project configuration/specification rather than relying on unspecified defaults. Playwright and k6 run as dedicated validation jobs, not on every build.
+
+These are the selected tools; Maven plugins, CI jobs, and test profiles still need to be configured in the project.
