@@ -44,6 +44,7 @@ root        docker compose up --build   # whole system locally
   - main user journeys → a few end-to-end tests (`@SpringBootTest` + Playwright).
 - Tests that need Docker or a browser are named `*IT` and run in `mvn verify` (Failsafe), so `mvn test` stays fast.
 - Acceptance criteria of core stories are Gherkin scenarios automated with Cucumber, tagged with the story key (`@PT-<n>`).
+- Keep automated tests traceable to their Jira stories, so that CI test results can be reported to Xray.
 - Test boundaries (exactly at the limit, just before, just after), not only one value in the middle.
 - Assertions must be able to fail and must name the rule (`assertEquals` / AssertJ, not `assertTrue`).
 - Browser tests: user-facing locators (`getByRole`, `getByLabel`, `getByText`), no `Thread.sleep`.
@@ -73,6 +74,10 @@ A story is done only when all of these are true:
 
 ## 7. Rules for AI agents
 
+- Before implementing a change, read the related Jira story, its acceptance criteria and the existing code.
+- Follow the existing architecture and module responsibilities. Do not change architectural boundaries without justification
+  (e.g. the backend talks to the simulator only through the MQTT broker, and only the MQTT adapter knows MQTT).
+- Do not add dependencies with known security vulnerabilities, and respect the dependency security checks in CI.
 - Agents never merge. A human approves every pull request and is accountable for it.
 - Never send secrets, credentials or personal data to an AI service.
 - Every merged line must be explainable by a team member at a checkpoint.
