@@ -33,6 +33,13 @@ services:
       broker:
         condition: service_started
 
+  simulator:
+    build: ./simulator
+    environment:
+      MQTT_HOST: broker
+    depends_on:
+      - broker
+
   frontend:
     build: ./frontend
     ports:
