@@ -36,3 +36,13 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+
+  compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: docker compose up --build -d
+      - name: Health check through nginx
+        run: curl --fail --retry 20 --retry-all-errors --retry-delay 3 http://localhost:3000/api/health
+      - if: always()
+        run: docker compose down -v
