@@ -23,5 +23,22 @@ services:
     volumes:
       - ./broker/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
 
+  backend:
+    build: ./backend
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+      broker:
+        condition: service_started
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
 volumes:
   db-data:
