@@ -1,0 +1,33 @@
+# PT-103: Dependabot checks our dependencies for known vulnerabilities
+# and opens update PRs into dev once a week.
+version: 2
+updates:
+  - package-ecosystem: maven
+    directory: /backend
+    target-branch: dev
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: npm
+    directory: /frontend
+    target-branch: dev
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: pip
+    directory: /simulator
+    target-branch: dev
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directories: [/backend, /frontend, /simulator]
+    target-branch: dev
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: dev
+    schedule:
+      interval: weekly
