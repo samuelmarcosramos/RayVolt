@@ -18,16 +18,18 @@ public class FleetService {
 
     public Scooter add(String type, UUID hubId) {
         Scooter scooter = new Scooter(UUID.randomUUID(), type, hubId, ScooterStatus.AVAILABLE);
-        return repository.withExclusiveAccess(() -> {
+        return repository.withTransaction(() -> {
+            repository.lockHubs(hubId);
             requireSpace(hubId);
             return repository.save(scooter);
         });
     }
 
     public Scooter edit(UUID id, String type, UUID hubId) {
-        return repository.withExclusiveAccess(() -> {
+        return repository.withTransaction(() -> {
             Scooter current = find(id);
             Scooter updated = current.edit(type, hubId);
+            repository.lockHubs(current.hubId(), hubId);
             if (!current.hubId().equals(hubId)) {
                 requireSpace(hubId);
             }
@@ -36,11 +38,16 @@ public class FleetService {
     }
 
     public Scooter retire(UUID id) {
-        return repository.withExclusiveAccess(() -> repository.save(find(id).retire()));
+        return repository.withTransaction(() -> {
+            Scooter current = find(id);
+            Scooter retired = current.retire();
+            repository.lockHubs(current.hubId());
+            return repository.save(retired);
+        });
     }
 
     private Scooter find(UUID id) {
-        return repository.findById(id).orElseThrow(() -> new NoSuchElementException("Scooter not found"));
+        return repository.findByIdForUpdate(id).orElseThrow(() -> new NoSuchElementException("Scooter not found"));
     }
 
     private void requireSpace(UUID hubId) {

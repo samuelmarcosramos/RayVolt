@@ -7,10 +7,13 @@ import java.util.function.Supplier;
 
 public interface FleetRepository {
     Optional<Scooter> findById(UUID id);
+    Optional<Scooter> findByIdForUpdate(UUID id);
+    void lockHubs(UUID... hubIds);
     Scooter save(Scooter scooter);
     boolean hasSpace(UUID hubId);
 
     // Fleet mutations must be atomic and roll back on failure.
-    // All booking/trip state changes must participate in the same locking protocol.
-    <T> T withExclusiveAccess(Supplier<T> operation);
+    // Lock the scooter first, then hubs in UUID order before checking capacity or saving.
+    // Booking/trip state changes must use the same locking protocol.
+    <T> T withTransaction(Supplier<T> operation);
 }

@@ -5,6 +5,7 @@ import com.rayvolt.backend.fleet.model.ScooterStatus;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.support.TransactionTemplate;
+import java.util.Arrays;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.UUID;
@@ -22,7 +23,17 @@ public class PostgresFleetRepository implements FleetRepository {
 
     @Override
     public Optional<Scooter> findById(UUID id) {
-        return jdbc.sql("SELECT id, type, hub_id, status FROM scooters WHERE id = :id")
+        return find(id, false);
+    }
+
+    @Override
+    public Optional<Scooter> findByIdForUpdate(UUID id) {
+        return find(id, true);
+    }
+
+    private Optional<Scooter> find(UUID id, boolean forUpdate) {
+        String sql = "SELECT id, type, hub_id, status FROM scooters WHERE id = :id";
+        return jdbc.sql(sql + (forUpdate ? " FOR UPDATE" : ""))
                 .param("id", id)
                 .query((rs, row) -> new Scooter(rs.getObject("id", UUID.class), rs.getString("type"),
                         rs.getObject("hub_id", UUID.class), ScooterStatus.valueOf(rs.getString("status"))))
@@ -30,14 +41,24 @@ public class PostgresFleetRepository implements FleetRepository {
     }
 
     @Override
+    public void lockHubs(UUID... hubIds) {
+        for (UUID id : Arrays.stream(hubIds).distinct().sorted().toList()) {
+            jdbc.sql("SELECT id FROM hubs WHERE id = :id FOR UPDATE").param("id", id)
+                    .query(UUID.class).optional()
+                    .orElseThrow(() -> new NoSuchElementException("Hub not found"));
+        }
+    }
+
+    @Override
     public Scooter save(Scooter scooter) {
-        jdbc.sql("""
-                INSERT INTO scooters (id, type, hub_id, status) VALUES (:id, :type, :hub, :status)
-                ON CONFLICT (id) DO UPDATE SET type = EXCLUDED.type,
-                    hub_id = EXCLUDED.hub_id, status = EXCLUDED.status
-                """)
+        int updated = jdbc.sql("UPDATE scooters SET type = :type, hub_id = :hub, status = :status WHERE id = :id")
                 .param("id", scooter.id()).param("type", scooter.type())
                 .param("hub", scooter.hubId()).param("status", scooter.status().name()).update();
+        if (updated == 0) {
+            jdbc.sql("INSERT INTO scooters (id, type, hub_id, status) VALUES (:id, :type, :hub, :status)")
+                    .param("id", scooter.id()).param("type", scooter.type())
+                    .param("hub", scooter.hubId()).param("status", scooter.status().name()).update();
+        }
         return scooter;
     }
 
@@ -52,11 +73,7 @@ public class PostgresFleetRepository implements FleetRepository {
     }
 
     @Override
-    public <T> T withExclusiveAccess(Supplier<T> operation) {
-        return transactions.execute(status -> {
-            // Serialize fleet writes, including changes made by future booking/trip modules.
-            jdbc.sql("LOCK TABLE hubs, scooters IN EXCLUSIVE MODE").update();
-            return operation.get();
-        });
+    public <T> T withTransaction(Supplier<T> operation) {
+        return transactions.execute(status -> operation.get());
     }
 }

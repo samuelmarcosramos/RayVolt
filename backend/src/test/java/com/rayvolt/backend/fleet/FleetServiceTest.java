@@ -71,8 +71,10 @@ class FleetServiceTest {
         private final Map<UUID, Scooter> items = new HashMap<>();
         private boolean space = true;
         public Optional<Scooter> findById(UUID id) { return Optional.ofNullable(items.get(id)); }
+        public Optional<Scooter> findByIdForUpdate(UUID id) { return findById(id); }
+        public void lockHubs(UUID... hubIds) { }
         public Scooter save(Scooter scooter) { items.put(scooter.id(), scooter); return scooter; }
         public boolean hasSpace(UUID hubId) { return space; }
-        public <T> T withExclusiveAccess(Supplier<T> operation) { return operation.get(); }
+        public <T> T withTransaction(Supplier<T> operation) { return operation.get(); }
     }
 }
