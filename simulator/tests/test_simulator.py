@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from simulator import Fleet, Scooter, scooter_id_from_topic
+from simulator import Fleet, Scooter, distance_m, scooter_id_from_topic
 
 HUBS = b'[{"id": 1, "name": "Main Gate", "lat": 40.612, "lon": -8.7175},' \
        b' {"id": 2, "name": "Production Hall", "lat": 40.606, "lon": -8.72}]'
@@ -103,5 +103,123 @@ def test_empty_message_keeps_the_scooter():
 def test_invalid_topic_is_ignored():
     fleet = fleet_with_hubs()
     fleet.handle_fleet_message("rayvolt/fleet/abc", b'{"hubId": 2}')
+
+    assert fleet.scooters() == []
+
+
+MAIN_GATE = {"id": 1, "name": "Main Gate", "lat": 40.612, "lon": -8.7175}
+PRODUCTION = {"id": 2, "name": "Production Hall", "lat": 40.606, "lon": -8.72}
+
+
+class FixedSpeed:
+    def __init__(self, speed):
+        self.speed = speed
+
+    def uniform(self, low, high):
+        return self.speed
+
+    def choice(self, options):
+        return options[0]
+
+
+def moving_scooter():
+    scooter = Scooter(7, MAIN_GATE)
+    scooter.unlock([MAIN_GATE, PRODUCTION])
+    return scooter
+
+
+def test_command_topic_gives_the_scooter_id():
+    assert scooter_id_from_topic("rayvolt/scooters/7/commands") == 7
+
+
+def test_unlock_goes_to_another_hub():
+    scooter = moving_scooter()
+
+    assert scooter.destination == PRODUCTION
+    assert (scooter.locked, scooter.hub_id, scooter.status) == (False, 1, "MOVING")
+
+
+def test_unlock_with_only_one_hub_stays_locked():
+    scooter = Scooter(7, MAIN_GATE)
+    scooter.unlock([MAIN_GATE])
+
+    assert scooter.locked
+    assert scooter.status == "AT_HUB"
+
+
+def test_step_moves_towards_the_destination_and_drains_battery():
+    scooter = moving_scooter()
+    start = distance_m(scooter.lat, scooter.lon, PRODUCTION["lat"], PRODUCTION["lon"])
+
+    scooter.step(10, FixedSpeed(18))
+
+    left = distance_m(scooter.lat, scooter.lon, PRODUCTION["lat"], PRODUCTION["lon"])
+    assert round(start - left) == 50
+    assert scooter.battery == 99.5
+    assert scooter.speed_kmh == 18
+
+
+def test_speed_is_between_10_and_20():
+    scooter = moving_scooter()
+    for _ in range(50):
+        scooter.step(1)
+        assert 10 <= scooter.speed_kmh <= 20
+
+
+def test_scooter_stops_at_the_destination_hub():
+    scooter = moving_scooter()
+
+    scooter.step(3600, FixedSpeed(18))
+
+    assert (scooter.lat, scooter.lon) == (PRODUCTION["lat"], PRODUCTION["lon"])
+    assert (scooter.hub_id, scooter.status, scooter.speed_kmh) == (2, "AT_HUB", 0)
+    assert not scooter.locked
+
+
+def test_lock_before_moving_stays_at_the_start_hub():
+    scooter = moving_scooter()
+    scooter.lock()
+
+    assert (scooter.locked, scooter.hub_id, scooter.status) == (True, 1, "AT_HUB")
+
+
+def test_lock_at_the_hub_is_at_hub():
+    scooter = moving_scooter()
+    scooter.step(3600)
+    scooter.lock()
+
+    assert scooter.locked
+    assert scooter.status == "AT_HUB"
+
+
+def test_lock_on_the_way_is_outside_hub():
+    scooter = moving_scooter()
+    scooter.step(10)
+    scooter.lock()
+
+    assert (scooter.locked, scooter.hub_id, scooter.status, scooter.speed_kmh) == (True, None, "OUTSIDE_HUB", 0)
+
+
+def test_locked_scooter_does_not_move():
+    scooter = Scooter(7, MAIN_GATE)
+    scooter.step(10)
+
+    assert (scooter.lat, scooter.lon, scooter.battery) == (MAIN_GATE["lat"], MAIN_GATE["lon"], 100)
+
+
+def test_fleet_commands_unlock_and_lock():
+    fleet = fleet_with_hubs()
+    fleet.handle_fleet_message("rayvolt/fleet/7", b'{"hubId": 1}')
+
+    fleet.handle_command("rayvolt/scooters/7/commands", b'{"command": "UNLOCK"}')
+    assert fleet.scooters()[0].status == "MOVING"
+
+    fleet.handle_command("rayvolt/scooters/7/commands", b'{"command": "LOCK"}')
+    assert fleet.scooters()[0].status == "AT_HUB"
+
+
+def test_command_for_unknown_scooter_is_ignored():
+    fleet = fleet_with_hubs()
+    fleet.handle_command("rayvolt/scooters/9/commands", b'{"command": "UNLOCK"}')
 
     assert fleet.scooters() == []
