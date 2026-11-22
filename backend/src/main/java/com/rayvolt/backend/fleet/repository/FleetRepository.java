@@ -10,7 +10,7 @@ public interface FleetRepository {
     Scooter save(Scooter scooter);
     boolean hasSpace(UUID hubId);
 
-    // TODO: PostgreSQL adapter must lock fleet mutations and roll back on failure.
+    // Fleet mutations must be atomic and roll back on failure.
     // All booking/trip state changes must participate in the same locking protocol.
     <T> T withExclusiveAccess(Supplier<T> operation);
 }
