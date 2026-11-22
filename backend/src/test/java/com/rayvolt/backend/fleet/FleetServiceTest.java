@@ -29,8 +29,7 @@ class FleetServiceTest {
         Scooter scooter = service.add("Standard", hub);
         repository.space = false;
         assertThatThrownBy(() -> service.add("Standard", hub)).isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(() -> service.edit(scooter.id(), "Patrol", UUID.randomUUID()))
-                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> service.edit(scooter.id(), "Patrol", UUID.randomUUID())).isInstanceOf(IllegalStateException.class);
         assertThat(service.edit(scooter.id(), "Patrol", hub).type()).isEqualTo("Patrol");
         assertThat(repository.items).hasSize(1);
     }
