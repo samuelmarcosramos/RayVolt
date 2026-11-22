@@ -75,6 +75,12 @@ class Scooter:
             self.lon += (self.destination["lon"] - self.lon) * fraction
         self.battery = max(0, self.battery - travelled / 100 * BATTERY_PER_100_M)
 
+    def events_topic(self):
+        return f"rayvolt/scooters/{self.id}/events"
+
+    def fault_event(self, now):
+        return {"scooterId": self.id, "timestamp": now.isoformat(), "type": "FAULT"}
+
     def telemetry_topic(self):
         return f"rayvolt/scooters/{self.id}/telemetry"
 
@@ -131,7 +137,7 @@ class Fleet:
         with self._lock:
             self._scooters.setdefault(scooter_id, Scooter(scooter_id, hub))
 
-    def handle_command(self, topic, payload):
+    def handle_command(self, topic, payload, now):
         scooter_id = scooter_id_from_topic(topic)
         try:
             command = json.loads(payload)["command"]
@@ -146,6 +152,8 @@ class Fleet:
                 scooter.unlock(self.hubs.values())
             elif command == "LOCK":
                 scooter.lock()
+            elif command == "FAULT":
+                return scooter.events_topic(), scooter.fault_event(now)
             else:
                 print(f"Error: unknown command {command} for scooter {scooter_id}")
 
@@ -167,7 +175,9 @@ def on_message(client, fleet, msg):
     elif msg.topic.startswith("rayvolt/fleet/"):
         fleet.handle_fleet_message(msg.topic, msg.payload)
     else:
-        fleet.handle_command(msg.topic, msg.payload)
+        event = fleet.handle_command(msg.topic, msg.payload, datetime.now(timezone.utc))
+        if event:
+            client.publish(event[0], json.dumps(event[1]), qos=1)
 
 
 def connect(fleet):

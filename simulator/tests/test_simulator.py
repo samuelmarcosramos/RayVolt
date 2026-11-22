@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 
 from simulator import Fleet, Scooter, distance_m, scooter_id_from_topic
 
+NOW = datetime(2026, 11, 22, 10, 0, tzinfo=timezone.utc)
 HUBS = b'[{"id": 1, "name": "Main Gate", "lat": 40.612, "lon": -8.7175},' \
        b' {"id": 2, "name": "Production Hall", "lat": 40.606, "lon": -8.72}]'
 
@@ -211,15 +212,38 @@ def test_fleet_commands_unlock_and_lock():
     fleet = fleet_with_hubs()
     fleet.handle_fleet_message("rayvolt/fleet/7", b'{"hubId": 1}')
 
-    fleet.handle_command("rayvolt/scooters/7/commands", b'{"command": "UNLOCK"}')
+    fleet.handle_command("rayvolt/scooters/7/commands", b'{"command": "UNLOCK"}', NOW)
     assert fleet.scooters()[0].status == "MOVING"
 
-    fleet.handle_command("rayvolt/scooters/7/commands", b'{"command": "LOCK"}')
+    fleet.handle_command("rayvolt/scooters/7/commands", b'{"command": "LOCK"}', NOW)
     assert fleet.scooters()[0].status == "AT_HUB"
 
 
 def test_command_for_unknown_scooter_is_ignored():
     fleet = fleet_with_hubs()
-    fleet.handle_command("rayvolt/scooters/9/commands", b'{"command": "UNLOCK"}')
+    fleet.handle_command("rayvolt/scooters/9/commands", b'{"command": "UNLOCK"}', NOW)
 
     assert fleet.scooters() == []
+
+
+def test_fault_command_gives_a_fault_event():
+    fleet = fleet_with_hubs()
+    fleet.handle_fleet_message("rayvolt/fleet/7", b'{"hubId": 1}')
+
+    event = fleet.handle_command("rayvolt/scooters/7/commands", b'{"command": "FAULT"}', NOW)
+
+    assert event == (
+        "rayvolt/scooters/7/events",
+        {"scooterId": 7, "timestamp": "2026-11-22T10:00:00+00:00", "type": "FAULT"},
+    )
+
+
+def test_fault_does_not_stop_the_ride():
+    fleet = fleet_with_hubs()
+    fleet.handle_fleet_message("rayvolt/fleet/7", b'{"hubId": 1}')
+    fleet.handle_command("rayvolt/scooters/7/commands", b'{"command": "UNLOCK"}', NOW)
+
+    fleet.handle_command("rayvolt/scooters/7/commands", b'{"command": "FAULT"}', NOW)
+
+    scooter = fleet.scooters()[0]
+    assert (scooter.locked, scooter.status, scooter.destination) == (False, "MOVING", PRODUCTION)
