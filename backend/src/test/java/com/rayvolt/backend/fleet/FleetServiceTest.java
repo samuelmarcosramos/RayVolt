@@ -8,7 +8,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import java.util.*;
-import java.util.function.Supplier;
 import static org.assertj.core.api.Assertions.*;
 
 @Tag("PT-32")
@@ -76,6 +75,5 @@ class FleetServiceTest {
         public void lockHubs(UUID... hubIds) { }
         public Scooter save(Scooter scooter) { items.put(scooter.id(), scooter); return scooter; }
         public boolean hasSpace(UUID hubId) { return space; }
-        public <T> T withTransaction(Supplier<T> operation) { return operation.get(); }
     }
 }

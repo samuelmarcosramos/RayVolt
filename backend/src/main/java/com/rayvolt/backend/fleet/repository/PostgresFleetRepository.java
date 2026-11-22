@@ -4,7 +4,6 @@ import com.rayvolt.backend.fleet.model.Scooter;
 import com.rayvolt.backend.fleet.model.ScooterStatus;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
-import org.springframework.transaction.support.TransactionTemplate;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
@@ -12,16 +11,13 @@ import java.util.Arrays;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.function.Supplier;
 
 @Repository
 public class PostgresFleetRepository implements FleetRepository {
     private final JdbcClient jdbc;
-    private final TransactionTemplate transactions;
 
-    public PostgresFleetRepository(JdbcClient jdbc, TransactionTemplate transactions) {
+    public PostgresFleetRepository(JdbcClient jdbc) {
         this.jdbc = jdbc;
-        this.transactions = transactions;
     }
 
     @Override
@@ -85,8 +81,4 @@ public class PostgresFleetRepository implements FleetRepository {
         return occupied < capacity;
     }
 
-    @Override
-    public <T> T withTransaction(Supplier<T> operation) {
-        return transactions.execute(status -> operation.get());
-    }
 }

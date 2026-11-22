@@ -4,6 +4,7 @@ import com.rayvolt.backend.fleet.model.Scooter;
 import com.rayvolt.backend.fleet.model.ScooterStatus;
 import com.rayvolt.backend.fleet.repository.FleetRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
@@ -21,34 +22,31 @@ public class FleetService {
         return repository.findAll();
     }
 
+    @Transactional
     public Scooter add(String type, UUID hubId) {
         Scooter scooter = new Scooter(UUID.randomUUID(), type, hubId, ScooterStatus.AVAILABLE);
-        return repository.withTransaction(() -> {
-            repository.lockHubs(hubId);
-            requireSpace(hubId);
-            return repository.save(scooter);
-        });
+        repository.lockHubs(hubId);
+        requireSpace(hubId);
+        return repository.save(scooter);
     }
 
+    @Transactional
     public Scooter edit(UUID id, String type, UUID hubId) {
-        return repository.withTransaction(() -> {
-            Scooter current = find(id);
-            Scooter updated = current.edit(type, hubId);
-            repository.lockHubs(current.hubId(), hubId);
-            if (!current.hubId().equals(hubId)) {
-                requireSpace(hubId);
-            }
-            return repository.save(updated);
-        });
+        Scooter current = find(id);
+        Scooter updated = current.edit(type, hubId);
+        repository.lockHubs(current.hubId(), hubId);
+        if (!current.hubId().equals(hubId)) {
+            requireSpace(hubId);
+        }
+        return repository.save(updated);
     }
 
+    @Transactional
     public Scooter retire(UUID id) {
-        return repository.withTransaction(() -> {
-            Scooter current = find(id);
-            Scooter retired = current.retire();
-            repository.lockHubs(current.hubId());
-            return repository.save(retired);
-        });
+        Scooter current = find(id);
+        Scooter retired = current.retire();
+        repository.lockHubs(current.hubId());
+        return repository.save(retired);
     }
 
     private Scooter find(UUID id) {
