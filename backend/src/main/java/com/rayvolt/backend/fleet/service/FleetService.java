@@ -4,6 +4,7 @@ import com.rayvolt.backend.fleet.model.Scooter;
 import com.rayvolt.backend.fleet.model.ScooterStatus;
 import com.rayvolt.backend.fleet.repository.FleetRepository;
 import org.springframework.stereotype.Service;
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.UUID;
@@ -14,6 +15,10 @@ public class FleetService {
 
     public FleetService(FleetRepository repository) {
         this.repository = Objects.requireNonNull(repository);
+    }
+
+    public List<Scooter> list() {
+        return repository.findAll();
     }
 
     public Scooter add(String type, UUID hubId) {

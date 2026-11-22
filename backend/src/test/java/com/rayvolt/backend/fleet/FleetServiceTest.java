@@ -70,6 +70,7 @@ class FleetServiceTest {
     private static class TestRepository implements FleetRepository {
         private final Map<UUID, Scooter> items = new HashMap<>();
         private boolean space = true;
+        public List<Scooter> findAll() { return List.copyOf(items.values()); }
         public Optional<Scooter> findById(UUID id) { return Optional.ofNullable(items.get(id)); }
         public Optional<Scooter> findByIdForUpdate(UUID id) { return findById(id); }
         public void lockHubs(UUID... hubIds) { }

@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.UUID;
 import static org.mockito.Mockito.*;
@@ -24,6 +25,23 @@ class FleetControllerTest {
 
     private String request() {
         return "{\"type\":\"Standard\",\"hubId\":\"" + hub + "\"}";
+    }
+
+    @Test
+    void listReturnsEmptyArrayWhenFleetIsEmpty() throws Exception {
+        when(service.list()).thenReturn(List.of());
+        mvc.perform(get("/api/scooters")).andExpect(status().isOk())
+                .andExpect(content().json("[]"));
+    }
+
+    @Test
+    void listIncludesRetiredScootersForOperatorAndTelemetrySync() throws Exception {
+        when(service.list()).thenReturn(List.of(new Scooter(id, "Standard", hub, ScooterStatus.RETIRED)));
+        mvc.perform(get("/api/scooters")).andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(id.toString()))
+                .andExpect(jsonPath("$[0].type").value("Standard"))
+                .andExpect(jsonPath("$[0].hubId").value(hub.toString()))
+                .andExpect(jsonPath("$[0].status").value("RETIRED"));
     }
 
     @Test

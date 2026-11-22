@@ -1,11 +1,13 @@
 package com.rayvolt.backend.fleet.repository;
 
 import com.rayvolt.backend.fleet.model.Scooter;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Supplier;
 
 public interface FleetRepository {
+    List<Scooter> findAll();
     Optional<Scooter> findById(UUID id);
     Optional<Scooter> findByIdForUpdate(UUID id);
     void lockHubs(UUID... hubIds);

@@ -5,6 +5,9 @@ import com.rayvolt.backend.fleet.model.ScooterStatus;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.support.TransactionTemplate;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.List;
 import java.util.Arrays;
 import java.util.NoSuchElementException;
 import java.util.Optional;
@@ -22,6 +25,12 @@ public class PostgresFleetRepository implements FleetRepository {
     }
 
     @Override
+    public List<Scooter> findAll() {
+        return jdbc.sql("SELECT id, type, hub_id, status FROM scooters ORDER BY id")
+                .query(PostgresFleetRepository::mapScooter).list();
+    }
+
+    @Override
     public Optional<Scooter> findById(UUID id) {
         return find(id, false);
     }
@@ -35,9 +44,13 @@ public class PostgresFleetRepository implements FleetRepository {
         String sql = "SELECT id, type, hub_id, status FROM scooters WHERE id = :id";
         return jdbc.sql(sql + (forUpdate ? " FOR UPDATE" : ""))
                 .param("id", id)
-                .query((rs, row) -> new Scooter(rs.getObject("id", UUID.class), rs.getString("type"),
-                        rs.getObject("hub_id", UUID.class), ScooterStatus.valueOf(rs.getString("status"))))
+                .query(PostgresFleetRepository::mapScooter)
                 .optional();
+    }
+
+    private static Scooter mapScooter(ResultSet rs, int row) throws SQLException {
+        return new Scooter(rs.getObject("id", UUID.class), rs.getString("type"),
+                rs.getObject("hub_id", UUID.class), ScooterStatus.valueOf(rs.getString("status")));
     }
 
     @Override
