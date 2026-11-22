@@ -3,11 +3,12 @@ package com.rayvolt.backend.fleet.service;
 import com.rayvolt.backend.fleet.model.Scooter;
 import com.rayvolt.backend.fleet.model.ScooterStatus;
 import com.rayvolt.backend.fleet.repository.FleetRepository;
+import org.springframework.stereotype.Service;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.UUID;
 
-@org.springframework.stereotype.Service
+@Service
 public class FleetService {
     private final FleetRepository repository;
 

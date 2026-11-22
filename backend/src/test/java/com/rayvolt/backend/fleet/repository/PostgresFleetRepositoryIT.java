@@ -80,6 +80,17 @@ class PostgresFleetRepositoryIT {
     }
 
     @Test
+    void zeroCapacityAndFullDestinationRejectChanges() {
+        UUID destination = UUID.randomUUID();
+        jdbc.sql("INSERT INTO hubs VALUES (:id, 'Closed hub', 0)").param("id", destination).update();
+        assertThatThrownBy(() -> service.add("Standard", destination)).isInstanceOf(IllegalStateException.class);
+        Scooter scooter = service.add("Standard", hub);
+        assertThatThrownBy(() -> service.edit(scooter.id(), "Patrol", destination))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(repository.findById(scooter.id()).orElseThrow()).isEqualTo(scooter);
+    }
+
+    @Test
     void concurrentAddsCannotOverfillLastSpace() throws Exception {
         service.add("Standard", hub);
         CountDownLatch ready = new CountDownLatch(2);
