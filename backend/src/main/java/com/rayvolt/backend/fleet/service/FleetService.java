@@ -7,6 +7,7 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.UUID;
 
+@org.springframework.stereotype.Service
 public class FleetService {
     private final FleetRepository repository;
 
@@ -38,8 +39,7 @@ public class FleetService {
     }
 
     private Scooter find(UUID id) {
-        return repository.findById(id)
-                .orElseThrow(() -> new NoSuchElementException("Scooter not found"));
+        return repository.findById(id).orElseThrow(() -> new NoSuchElementException("Scooter not found"));
     }
 
     private void requireSpace(UUID hubId) {
