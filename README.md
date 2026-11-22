@@ -35,7 +35,7 @@ Every member is also a developer.
 |---|---|
 | Jira backlog | <https://ua-team-e2msb3m6.atlassian.net/jira/software/projects/PT/boards/2/backlog> |
 | Related repositories | none |
-| API documentation | not available yet |
+| API documentation | [Fleet API and local setup](docs/PT-32.md) |
 | Static analysis dashboard | not available yet |
 | Observability dashboard | not available yet |
 | Deployed application | not available yet |
