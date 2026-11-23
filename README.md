@@ -35,7 +35,7 @@ Every member is also a developer.
 |---|---|
 | Jira backlog | <https://ua-team-e2msb3m6.atlassian.net/jira/software/projects/PT/boards/2/backlog> |
 | Related repositories | none |
-| API documentation | Swagger UI at `/api/docs` (local: <http://localhost:3000/api/docs>) |
+| API documentation | Swagger/OpenAPI (planned) |
 | Static analysis dashboard | not available yet |
 | Observability dashboard | not available yet |
 | Deployed application | not available yet |
