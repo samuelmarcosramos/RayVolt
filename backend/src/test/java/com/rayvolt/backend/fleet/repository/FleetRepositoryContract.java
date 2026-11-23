@@ -10,7 +10,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.jdbc.support.GeneratedKeyHolder;
+import org.flywaydb.core.Flyway;
+import javax.sql.DataSource;
 import java.util.*;
+import com.rayvolt.backend.common.exception.*;
 import java.util.concurrent.*;
 import static org.assertj.core.api.Assertions.*;
 
@@ -21,14 +25,61 @@ abstract class FleetRepositoryContract {
     @Autowired private PostgresFleetRepository repository;
     @Autowired private JdbcClient jdbc;
     @Autowired private TransactionTemplate transactions;
-    private UUID hub;
+    @Autowired private DataSource dataSource;
+    private Long hub;
 
     @BeforeEach
     void prepareHub() {
         jdbc.sql("DELETE FROM scooters").update();
         jdbc.sql("DELETE FROM hubs").update();
-        hub = UUID.randomUUID();
+        hub = 1L;
         jdbc.sql("INSERT INTO hubs (id, name, capacity) VALUES (:id, 'Synthetic hub', 2)").param("id", hub).update();
+    }
+
+    @Test
+    void numericMigrationPreservesRecordsAndGeneratesFreshIds() {
+        String schema = "migration_" + UUID.randomUUID().toString().replace("-", "");
+        String namespace = "\"" + schema + "\"";
+        try {
+            Flyway.configure().dataSource(dataSource).schemas(schema).defaultSchema(schema)
+                    .target("2").load().migrate();
+            jdbc.sql("INSERT INTO " + namespace + ".hubs (id, name, capacity, lat, lon) VALUES "
+                    + "('00000000-0000-0000-0000-000000000001', 'Original north', 2, 40, -8), "
+                    + "('00000000-0000-0000-0000-000000000002', 'Original south', 3, NULL, NULL)").update();
+            jdbc.sql("INSERT INTO " + namespace + ".scooters (id, type, hub_id, status) VALUES "
+                    + "('00000000-0000-0000-0000-000000000003', 'Standard', "
+                    + "'00000000-0000-0000-0000-000000000001', 'AVAILABLE'), "
+                    + "('00000000-0000-0000-0000-000000000004', 'Patrol', "
+                    + "'00000000-0000-0000-0000-000000000002', 'RETIRED')").update();
+            Flyway.configure().dataSource(dataSource).schemas(schema).defaultSchema(schema).load().migrate();
+
+            assertThat(jdbc.sql("SELECT s.type || ':' || h.name || ':' || s.status FROM "
+                    + namespace + ".scooters s JOIN " + namespace + ".hubs h ON s.hub_id = h.id")
+                    .query(String.class).list())
+                    .containsExactlyInAnyOrder("Standard:Original north:AVAILABLE", "Patrol:Original south:RETIRED");
+            assertThat(jdbc.sql("SELECT lat FROM " + namespace + ".hubs WHERE name = 'Original north'")
+                    .query(Double.class).single()).isEqualTo(40);
+            assertThat(jdbc.sql("SELECT lon FROM " + namespace + ".hubs WHERE name = 'Original north'")
+                    .query(Double.class).single()).isEqualTo(-8);
+            assertThat(jdbc.sql("SELECT count(*) FROM " + namespace + ".legacy_hubs")
+                    .query(Long.class).single()).as("Original UUID hubs remain available").isEqualTo(2);
+            assertThat(jdbc.sql("SELECT count(*) FROM " + namespace + ".legacy_scooters s JOIN "
+                    + namespace + ".legacy_hubs h ON h.id = s.hub_id")
+                    .query(Long.class).single()).as("Original UUID scooters and relationships remain available").isEqualTo(2);
+            List<Long> oldHubIds = jdbc.sql("SELECT id FROM " + namespace + ".hubs").query(Long.class).list();
+            List<Long> oldScooterIds = jdbc.sql("SELECT id FROM " + namespace + ".scooters").query(Long.class).list();
+            GeneratedKeyHolder hubKey = new GeneratedKeyHolder();
+            jdbc.sql("INSERT INTO " + namespace + ".hubs (name, capacity) VALUES ('New hub', 1)")
+                    .update(hubKey, "id");
+            long newHubId = Objects.requireNonNull(hubKey.getKey()).longValue();
+            assertThat(newHubId).isPositive().isNotIn(oldHubIds);
+            GeneratedKeyHolder scooterKey = new GeneratedKeyHolder();
+            jdbc.sql("INSERT INTO " + namespace + ".scooters (type, hub_id, status) VALUES ('Standard', :hub, 'AVAILABLE')")
+                    .param("hub", newHubId).update(scooterKey, "id");
+            assertThat(Objects.requireNonNull(scooterKey.getKey()).longValue()).isPositive().isNotIn(oldScooterIds);
+        } finally {
+            jdbc.sql("DROP SCHEMA IF EXISTS " + namespace + " CASCADE").update();
+        }
     }
 
     @Test
@@ -37,7 +88,7 @@ abstract class FleetRepositoryContract {
         assertThat(repository.hasSpace(hub)).as("Capacity minus one has room").isTrue();
         service.add("Patrol", hub);
         assertThat(repository.hasSpace(hub)).as("Exactly full has no room").isFalse();
-        assertThatThrownBy(() -> service.add("Standard", hub)).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> service.add("Standard", hub)).isInstanceOf(ConflictException.class);
         service.retire(first.id());
         assertThat(repository.findById(first.id()).orElseThrow().status()).isEqualTo(ScooterStatus.RETIRED);
         assertThat(repository.hasSpace(hub)).as("Retirement releases capacity").isTrue();
@@ -47,36 +98,36 @@ abstract class FleetRepositoryContract {
 
     @Test
     void unknownHubIsRejectedAndFailedOperationRollsBack() {
-        assertThatThrownBy(() -> service.add("Standard", UUID.randomUUID())).isInstanceOf(NoSuchElementException.class);
-        Scooter scooter = new Scooter(UUID.randomUUID(), "Standard", hub, ScooterStatus.AVAILABLE);
+        assertThatThrownBy(() -> service.add("Standard", 999L)).isInstanceOf(NotFoundException.class);
+        Scooter scooter = new Scooter(null, "Standard", hub, ScooterStatus.AVAILABLE);
         assertThatThrownBy(() -> transactions.execute(status -> {
             repository.lockHubs(hub);
             repository.save(scooter);
             throw new IllegalStateException("Synthetic failure");
         })).isInstanceOf(IllegalStateException.class);
-        assertThat(repository.findById(scooter.id())).isEmpty();
+        assertThat(repository.findAll()).as("Failed transaction leaves no scooter behind").isEmpty();
     }
 
     @Test
     void movesPersistAndReservedScootersCannotRetire() {
         Scooter scooter = service.add("Standard", hub);
-        UUID destination = UUID.randomUUID();
+        Long destination = 2L;
         jdbc.sql("INSERT INTO hubs (id, name, capacity) VALUES (:id, 'Destination', 1)").param("id", destination).update();
         service.edit(scooter.id(), "Patrol", destination);
         assertThat(repository.findById(scooter.id()).orElseThrow().hubId()).isEqualTo(destination);
         jdbc.sql("UPDATE scooters SET status = 'RESERVED' WHERE id = :id").param("id", scooter.id()).update();
-        assertThatThrownBy(() -> service.retire(scooter.id())).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> service.retire(scooter.id())).isInstanceOf(ConflictException.class);
         assertThat(repository.findById(scooter.id()).orElseThrow().status()).isEqualTo(ScooterStatus.RESERVED);
     }
 
     @Test
     void zeroCapacityAndFullDestinationRejectChanges() {
-        UUID destination = UUID.randomUUID();
+        Long destination = 2L;
         jdbc.sql("INSERT INTO hubs (id, name, capacity) VALUES (:id, 'Closed hub', 0)").param("id", destination).update();
-        assertThatThrownBy(() -> service.add("Standard", destination)).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> service.add("Standard", destination)).isInstanceOf(ConflictException.class);
         Scooter scooter = service.add("Standard", hub);
         assertThatThrownBy(() -> service.edit(scooter.id(), "Patrol", destination))
-                .isInstanceOf(IllegalStateException.class);
+                .isInstanceOf(ConflictException.class);
         assertThat(repository.findById(scooter.id()).orElseThrow()).isEqualTo(scooter);
     }
 
@@ -86,6 +137,9 @@ abstract class FleetRepositoryContract {
         Scooter active = service.add("Standard", hub);
         Scooter retired = service.retire(service.add("Patrol", hub).id());
         assertThat(service.list()).containsExactlyInAnyOrder(active, retired);
+        assertThat(service.get(active.id())).isEqualTo(active);
+        assertThat(service.get(retired.id())).isEqualTo(retired);
+        assertThatThrownBy(() -> service.get(999L)).isInstanceOf(NotFoundException.class);
     }
 
     @ParameterizedTest
@@ -109,7 +163,7 @@ abstract class FleetRepositoryContract {
 
     @Test
     void unrelatedHubCanBeChangedWhileAnotherHubIsLocked() throws Exception {
-        UUID otherHub = UUID.randomUUID();
+        Long otherHub = 2L;
         jdbc.sql("INSERT INTO hubs (id, name, capacity) VALUES (:id, 'Other hub', 1)")
                 .param("id", otherHub).update();
         CountDownLatch locked = new CountDownLatch(1);
@@ -145,7 +199,7 @@ abstract class FleetRepositoryContract {
 
     @Test
     void oppositeMovesDoNotDeadlock() throws Exception {
-        UUID destination = UUID.randomUUID();
+        Long destination = 2L;
         jdbc.sql("INSERT INTO hubs (id, name, capacity) VALUES (:id, 'Destination', 2)")
                 .param("id", destination).update();
         Scooter first = service.add("Standard", hub);
@@ -176,7 +230,7 @@ abstract class FleetRepositoryContract {
                 ready.countDown();
                 if (!start.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("Start timed out");
                 try { service.add("Standard", hub); return true; }
-                catch (IllegalStateException full) { return false; }
+                catch (ConflictException full) { return false; }
             };
             Future<Boolean> first = executor.submit(add);
             Future<Boolean> second = executor.submit(add);
