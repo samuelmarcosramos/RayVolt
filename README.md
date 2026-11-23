@@ -35,45 +35,7 @@ Every member is also a developer.
 |---|---|
 | Jira backlog | <https://ua-team-e2msb3m6.atlassian.net/jira/software/projects/PT/boards/2/backlog> |
 | Related repositories | none |
-| API documentation | [Fleet API](#fleet-api) |
+| API documentation | Swagger/OpenAPI (planned) |
 | Static analysis dashboard | not available yet |
 | Observability dashboard | not available yet |
 | Deployed application | not available yet |
-
-
-## Fleet API
-
-The operator API uses `/api/scooters`:
-
-| Method | Path | Result |
-| --- | --- | --- |
-| GET | `/api/scooters` | 200 with all scooters, including retired records for operator/telemetry synchronization |
-| POST | `/api/scooters` | 201 with the created scooter and Location header |
-| PUT | `/api/scooters/{id}` | 200 with the updated scooter |
-| DELETE | `/api/scooters/{id}` | 204 after logical retirement |
-
-POST/PUT body: `{"type":"Standard","hubId":"<existing-hub-uuid>"}`.
-Scooter responses contain `id`, `type`, `hubId` and `status`.
-Invalid requests return 400, unknown scooters/hubs return 404, and full hubs or
-forbidden state changes return 409. Errors use ProblemDetail.
-
-Fleet mutations lock the scooter first (when it exists), then the affected hub
-rows in UUID order within one transaction. Future booking/trip writers must use
-the same protocol before reading state or changing occupancy.
-
-Hub positions use `lat` (-90 to 90) and `lon` (-180 to 180), in degrees.
-Both coordinates may remain null for existing hubs whose position is unknown;
-otherwise both must be supplied. Hub management must populate these before a hub
-can be shown on the map or used by the simulator. No coordinates are fabricated.
-
-Run `docker compose up --build` for the local stack. The backend reads
-`SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME` and
-`SPRING_DATASOURCE_PASSWORD`; Compose provides development defaults.
-Flyway applies the Fleet schema migrations on startup. Unit, HTTP and H2 tests
-run with `cd backend && ./mvnw test`; `./mvnw verify` also runs PostgreSQL 18
-integration tests with Docker.
-
-TODO: operator authorization (Users), hub management API, type catalogue,
-booking eligibility, trip-history integration, and user-facing queries that
-exclude retired scooters. The operator list is not the end-user availability API.
-TODO: publish the API through Swagger/OpenAPI when that tooling is introduced.
