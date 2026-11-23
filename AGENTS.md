@@ -78,6 +78,9 @@ A story is done only when all of these are true:
 - Follow the existing architecture and module responsibilities. Do not change architectural boundaries without justification
   (e.g. the backend talks to the simulator only through the MQTT broker, and only the MQTT adapter knows MQTT).
 - Do not add dependencies with known security vulnerabilities, and respect the dependency security checks in CI.
+- A PR description written by an agent follows `.github/pull_request_template.md`: it starts with the Jira item `PT-<n>`
+  and the AC → test table, with each acceptance criterion copied from Jira and the test that covers it.
+  If the item has no AC, the agent stops and asks instead of guessing.
 - Agents never merge. A human approves every pull request and is accountable for it.
 - Never send secrets, credentials or personal data to an AI service.
 - Every merged line must be explainable by a team member at a checkpoint.
