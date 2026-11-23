@@ -9,7 +9,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import com.rayvolt.backend.common.exception.NotFoundException;
 import java.util.Objects;
-import java.util.UUID;
 
 @Service
 public class FleetService {
@@ -23,16 +22,20 @@ public class FleetService {
         return repository.findAll();
     }
 
+    public Scooter get(Long id) {
+        return repository.findById(id).orElseThrow(() -> new NotFoundException("Scooter not found"));
+    }
+
     @Transactional
-    public Scooter add(String type, UUID hubId) {
-        Scooter scooter = new Scooter(UUID.randomUUID(), type, hubId, ScooterStatus.AVAILABLE);
+    public Scooter add(String type, Long hubId) {
+        Scooter scooter = new Scooter(null, type, hubId, ScooterStatus.AVAILABLE);
         repository.lockHubs(hubId);
         requireSpace(hubId);
         return repository.save(scooter);
     }
 
     @Transactional
-    public Scooter edit(UUID id, String type, UUID hubId) {
+    public Scooter edit(Long id, String type, Long hubId) {
         Scooter current = find(id);
         Scooter updated = current.edit(type, hubId);
         repository.lockHubs(current.hubId(), hubId);
@@ -43,18 +46,18 @@ public class FleetService {
     }
 
     @Transactional
-    public Scooter retire(UUID id) {
+    public Scooter retire(Long id) {
         Scooter current = find(id);
         Scooter retired = current.retire();
         repository.lockHubs(current.hubId());
         return repository.save(retired);
     }
 
-    private Scooter find(UUID id) {
+    private Scooter find(Long id) {
         return repository.findByIdForUpdate(id).orElseThrow(() -> new NotFoundException("Scooter not found"));
     }
 
-    private void requireSpace(UUID hubId) {
+    private void requireSpace(Long hubId) {
         if (!repository.hasSpace(hubId)) {
             throw new ConflictException("Destination hub is full");
         }

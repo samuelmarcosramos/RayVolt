@@ -3,12 +3,12 @@ package com.rayvolt.backend.fleet.model;
 import com.rayvolt.backend.common.exception.BadRequestException;
 import com.rayvolt.backend.common.exception.ConflictException;
 import java.util.Objects;
-import java.util.UUID;
 
-public record Scooter(UUID id, String type, UUID hubId, ScooterStatus status) {
+public record Scooter(Long id, String type, Long hubId, ScooterStatus status) {
     public Scooter {
-        Objects.requireNonNull(id, "Scooter ID is required");
-        Objects.requireNonNull(hubId, "Hub ID is required");
+        if ((id != null && id <= 0) || hubId == null || hubId <= 0) {
+            throw new BadRequestException("Scooter and hub IDs must be positive numbers");
+        }
         Objects.requireNonNull(status, "Status is required");
         if (type == null || type.isBlank()) {
             throw new BadRequestException("Scooter type is required");
@@ -16,7 +16,7 @@ public record Scooter(UUID id, String type, UUID hubId, ScooterStatus status) {
         type = type.strip();
     }
 
-    public Scooter edit(String type, UUID hubId) {
+    public Scooter edit(String type, Long hubId) {
         requireEditable();
         return new Scooter(id, type, hubId, status);
     }

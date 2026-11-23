@@ -7,7 +7,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.net.URI;
 import java.util.List;
-import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/scooters")
@@ -24,6 +23,11 @@ public class FleetController {
         return service.list();
     }
 
+    @GetMapping("/{id}")
+    public Scooter get(@PathVariable Long id) {
+        return service.get(id);
+    }
+
     @PostMapping
     public ResponseEntity<Scooter> add(@RequestBody ScooterRequest request) {
         Scooter scooter = service.add(request.type(), request.hubId());
@@ -31,19 +35,19 @@ public class FleetController {
     }
 
     @PutMapping("/{id}")
-    public Scooter edit(@PathVariable UUID id, @RequestBody ScooterRequest request) {
+    public Scooter edit(@PathVariable Long id, @RequestBody ScooterRequest request) {
         return service.edit(id, request.type(), request.hubId());
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> retire(@PathVariable UUID id) {
+    public ResponseEntity<Void> retire(@PathVariable Long id) {
         service.retire(id);
         return ResponseEntity.noContent().build();
     }
 
-    public record ScooterRequest(String type, UUID hubId) {
+    public record ScooterRequest(String type, Long hubId) {
         public ScooterRequest {
-            if (type == null || type.isBlank() || hubId == null) {
+            if (type == null || type.isBlank() || hubId == null || hubId <= 0) {
                 throw new BadRequestException("Scooter type and hub ID are required");
             }
         }
