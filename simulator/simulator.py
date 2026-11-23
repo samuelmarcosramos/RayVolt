@@ -11,6 +11,8 @@ import paho.mqtt.client as mqtt
 BROKER_HOST = os.getenv("MQTT_HOST", "localhost")
 BROKER_PORT = int(os.getenv("MQTT_PORT", "1883"))
 PUBLISH_INTERVAL = float(os.getenv("PUBLISH_INTERVAL", "5"))
+CHARGE_PER_MINUTE = float(os.getenv("CHARGE_PER_MINUTE", "3"))
+SEED = os.getenv("SEED")
 HUBS_TOPIC = "rayvolt/hubs"
 FLEET_TOPIC = "rayvolt/fleet/+"
 COMMANDS_TOPIC = "rayvolt/scooters/+/commands"
@@ -61,6 +63,8 @@ class Scooter:
 
     def step(self, seconds, rng=random):
         if self.destination is None:
+            if self.locked and self.status == "AT_HUB":
+                self.battery = min(100, self.battery + CHARGE_PER_MINUTE * seconds / 60)
             return
         self.speed_kmh = round(rng.uniform(MIN_SPEED_KMH, MAX_SPEED_KMH), 1)
         travelled = self.speed_kmh / 3.6 * seconds
@@ -110,7 +114,8 @@ def scooter_id_from_topic(topic):
 
 
 class Fleet:
-    def __init__(self):
+    def __init__(self, rng=None):
+        self.rng = rng or random.Random()
         self.hubs = {}
         self._scooters = {}
         self._lock = threading.Lock()
@@ -157,7 +162,7 @@ class Fleet:
             if scooter is None:
                 reason = "UNKNOWN_SCOOTER"
             elif command == "UNLOCK":
-                reason = scooter.unlock(self.hubs.values())
+                reason = scooter.unlock(self.hubs.values(), self.rng)
             elif command == "LOCK":
                 scooter.lock()
                 reason = None
@@ -185,12 +190,30 @@ class Fleet:
     def tick(self, seconds, now):
         with self._lock:
             for scooter in self._scooters.values():
-                scooter.step(seconds)
+                scooter.step(seconds, self.rng)
             return [(s.telemetry_topic(), s.telemetry(now)) for s in self._scooters.values()]
 
     def scooters(self):
         with self._lock:
             return list(self._scooters.values())
+
+
+class RateMeter:
+    def __init__(self, period=10, clock=time.monotonic):
+        self.period = period
+        self.clock = clock
+        self.start = clock()
+        self.count = 0
+
+    def add(self, readings):
+        self.count += readings
+        elapsed = self.clock() - self.start
+        if elapsed < self.period:
+            return None
+        line = f"Rate: {self.count / elapsed:.0f} readings/s ({self.count} sent in {elapsed:.0f} s)"
+        self.start = self.clock()
+        self.count = 0
+        return line
 
 
 def on_message(client, fleet, msg):
@@ -218,16 +241,21 @@ def connect(fleet):
 
 
 def main():
-    fleet = Fleet()
+    fleet = Fleet(random.Random(SEED) if SEED else None)
     client = connect(fleet)
     client.loop_start()
     print(f"Connected to {BROKER_HOST}:{BROKER_PORT}, waiting for hubs on {HUBS_TOPIC}")
+    meter = RateMeter()
     while True:
         now = datetime.now(timezone.utc)
-        for topic, telemetry in fleet.tick(PUBLISH_INTERVAL, now):
+        readings = fleet.tick(PUBLISH_INTERVAL, now)
+        for topic, telemetry in readings:
             message = json.dumps(telemetry)
             client.publish(topic, message, qos=1)
             print(f"Sent {message}")
+        rate = meter.add(len(readings))
+        if rate:
+            print(rate)
         time.sleep(PUBLISH_INTERVAL)
 
 

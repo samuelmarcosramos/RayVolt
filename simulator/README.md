@@ -48,6 +48,13 @@ Sending `UNLOCK` to an unlocked scooter, or `LOCK` to a locked one, is `COMPLETE
 - The simulator reads the hubs first, then the fleet.
 - `UNLOCK`: the scooter rides in a straight line to a random other hub, at 10-20 km/h, using 1% battery per 100 m.
 - `LOCK`: the scooter locks where it is, also between hubs (`OUTSIDE_HUB`).
+- A scooter locked at a hub charges 3% per minute, up to 100%. Locked outside a hub or unlocked, it does not charge.
+- With `SEED` set, two runs with the same commands give the same speeds and destinations. Without it, every run is random.
+
+## Load test
+
+Register many scooters through the backend API (for example 1000), then start the simulator with `PUBLISH_INTERVAL=1`.
+Every 10 s the log shows the real rate, for example `Rate: 998 readings/s (9980 sent in 10 s)`.
 
 ## Run and test
 
@@ -56,4 +63,4 @@ docker compose up -d broker simulator          # from the repo root
 pip install -r requirements-dev.txt && pytest  # from simulator/
 ```
 
-Environment: `MQTT_HOST` (default `localhost`), `MQTT_PORT` (`1883`), `PUBLISH_INTERVAL` (`5`).
+Environment: `MQTT_HOST` (default `localhost`), `MQTT_PORT` (`1883`), `PUBLISH_INTERVAL` (`5`), `CHARGE_PER_MINUTE` (`3`), `SEED` (empty).
