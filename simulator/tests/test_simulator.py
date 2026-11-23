@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timezone
 
 from simulator import Fleet, Scooter, distance_m, scooter_id_from_topic
@@ -36,6 +37,7 @@ def test_new_scooter_starts_parked_and_full_at_its_hub():
         "lat": 40.606,
         "lon": -8.72,
         "status": "AT_HUB",
+        "fault": False,
     }
 
 
@@ -208,42 +210,141 @@ def test_locked_scooter_does_not_move():
     assert (scooter.lat, scooter.lon, scooter.battery) == (MAIN_GATE["lat"], MAIN_GATE["lon"], 100)
 
 
-def test_fleet_commands_unlock_and_lock():
+COMMANDS = "rayvolt/scooters/7/commands"
+
+
+def fleet_with_scooter():
     fleet = fleet_with_hubs()
     fleet.handle_fleet_message("rayvolt/fleet/7", b'{"hubId": 1}')
-
-    fleet.handle_command("rayvolt/scooters/7/commands", b'{"command": "UNLOCK"}', NOW)
-    assert fleet.scooters()[0].status == "MOVING"
-
-    fleet.handle_command("rayvolt/scooters/7/commands", b'{"command": "LOCK"}', NOW)
-    assert fleet.scooters()[0].status == "AT_HUB"
+    return fleet
 
 
-def test_command_for_unknown_scooter_is_ignored():
-    fleet = fleet_with_hubs()
-    fleet.handle_command("rayvolt/scooters/9/commands", b'{"command": "UNLOCK"}', NOW)
-
-    assert fleet.scooters() == []
+def send(fleet, command, topic=COMMANDS):
+    return fleet.handle_command(topic, json.dumps({"command": command, "commandId": "c-1"}).encode(), NOW)
 
 
-def test_fault_command_gives_a_fault_event():
-    fleet = fleet_with_hubs()
-    fleet.handle_fleet_message("rayvolt/fleet/7", b'{"hubId": 1}')
-
-    event = fleet.handle_command("rayvolt/scooters/7/commands", b'{"command": "FAULT"}', NOW)
-
-    assert event == (
-        "rayvolt/scooters/7/events",
-        {"scooterId": 7, "timestamp": "2026-11-22T10:00:00+00:00", "type": "FAULT"},
+def reply(command, status="COMPLETED", reason=None, scooter_id=7):
+    return (
+        f"rayvolt/scooters/{scooter_id}/responses",
+        {
+            "scooterId": scooter_id,
+            "timestamp": "2026-11-22T10:00:00+00:00",
+            "commandId": "c-1",
+            "command": command,
+            "status": status,
+            "reason": reason,
+        },
     )
 
 
-def test_fault_does_not_stop_the_ride():
-    fleet = fleet_with_hubs()
-    fleet.handle_fleet_message("rayvolt/fleet/7", b'{"hubId": 1}')
-    fleet.handle_command("rayvolt/scooters/7/commands", b'{"command": "UNLOCK"}', NOW)
+FAULT_EVENT = ("rayvolt/scooters/7/events", {"scooterId": 7, "timestamp": "2026-11-22T10:00:00+00:00", "type": "FAULT"})
 
-    fleet.handle_command("rayvolt/scooters/7/commands", b'{"command": "FAULT"}', NOW)
+
+def test_unlock_and_lock_are_completed():
+    fleet = fleet_with_scooter()
+
+    assert send(fleet, "UNLOCK") == [reply("UNLOCK")]
+    assert fleet.scooters()[0].status == "MOVING"
+
+    assert send(fleet, "LOCK") == [reply("LOCK")]
+    assert fleet.scooters()[0].status == "AT_HUB"
+
+
+def test_unlock_twice_is_completed_and_changes_nothing():
+    fleet = fleet_with_scooter()
+    send(fleet, "UNLOCK")
+    destination = fleet.scooters()[0].destination
+
+    assert send(fleet, "UNLOCK") == [reply("UNLOCK")]
+    assert fleet.scooters()[0].destination == destination
+
+
+def test_lock_twice_is_completed():
+    fleet = fleet_with_scooter()
+
+    assert send(fleet, "LOCK") == [reply("LOCK")]
+    assert fleet.scooters()[0].locked
+
+
+def test_command_without_command_id_gets_no_reply():
+    fleet = fleet_with_scooter()
+
+    assert fleet.handle_command(COMMANDS, b'{"command": "UNLOCK"}', NOW) == []
+    assert fleet.scooters()[0].locked
+
+
+def test_invalid_json_gets_no_reply():
+    fleet = fleet_with_scooter()
+
+    assert fleet.handle_command(COMMANDS, b"not json", NOW) == []
+
+
+def test_unknown_scooter_is_rejected():
+    fleet = fleet_with_hubs()
+
+    assert send(fleet, "UNLOCK", "rayvolt/scooters/9/commands") == [
+        reply("UNLOCK", "REJECTED", "UNKNOWN_SCOOTER", scooter_id=9)
+    ]
+
+
+def test_unknown_command_is_rejected():
+    fleet = fleet_with_scooter()
+
+    assert send(fleet, "JUMP") == [reply("JUMP", "REJECTED", "UNKNOWN_COMMAND")]
+
+
+def test_unlock_with_empty_battery_is_rejected():
+    fleet = fleet_with_scooter()
+    fleet.scooters()[0].battery = 0.4
+
+    assert send(fleet, "UNLOCK") == [reply("UNLOCK", "REJECTED", "NO_BATTERY")]
+    assert fleet.scooters()[0].locked
+
+
+def test_unlock_with_only_one_hub_is_rejected():
+    fleet = Fleet()
+    fleet.handle_hubs_message(b'[{"id": 1, "name": "Main Gate", "lat": 40.612, "lon": -8.7175}]')
+    fleet.handle_fleet_message("rayvolt/fleet/7", b'{"hubId": 1}')
+
+    assert send(fleet, "UNLOCK") == [reply("UNLOCK", "REJECTED", "NO_OTHER_HUB")]
+
+
+def test_fault_sends_the_event_and_a_reply():
+    fleet = fleet_with_scooter()
+
+    assert send(fleet, "FAULT") == [FAULT_EVENT, reply("FAULT")]
+    assert fleet.scooters()[0].telemetry(NOW)["fault"] is True
+
+
+def test_second_fault_sends_no_new_event():
+    fleet = fleet_with_scooter()
+    send(fleet, "FAULT")
+
+    assert send(fleet, "FAULT") == [reply("FAULT")]
+
+
+def test_fault_does_not_stop_the_ride():
+    fleet = fleet_with_scooter()
+    send(fleet, "UNLOCK")
+
+    send(fleet, "FAULT")
 
     scooter = fleet.scooters()[0]
     assert (scooter.locked, scooter.status, scooter.destination) == (False, "MOVING", PRODUCTION)
+
+
+def test_unlock_with_fault_is_rejected():
+    fleet = fleet_with_scooter()
+    send(fleet, "FAULT")
+
+    assert send(fleet, "UNLOCK") == [reply("UNLOCK", "REJECTED", "SCOOTER_FAULT")]
+    assert fleet.scooters()[0].locked
+
+
+def test_clear_fault_allows_unlock_again():
+    fleet = fleet_with_scooter()
+    send(fleet, "FAULT")
+
+    assert send(fleet, "CLEAR_FAULT") == [reply("CLEAR_FAULT")]
+    assert fleet.scooters()[0].telemetry(NOW)["fault"] is False
+    assert send(fleet, "UNLOCK") == [reply("UNLOCK")]

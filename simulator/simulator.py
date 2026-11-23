@@ -36,17 +36,22 @@ class Scooter:
         self.lon = hub["lon"]
         self.status = "AT_HUB"
         self.destination = None
+        self.fault = False
 
     def unlock(self, hubs, rng=random):
         if not self.locked:
-            return
+            return None
+        if self.fault:
+            return "SCOOTER_FAULT"
+        if round(self.battery) == 0:
+            return "NO_BATTERY"
         options = [hub for hub in hubs if hub["id"] != self.hub_id]
         if not options:
-            print(f"Error: scooter {self.id} has no other hub to go to")
-            return
+            return "NO_OTHER_HUB"
         self.destination = rng.choice(options)
         self.locked = False
         self.status = "MOVING"
+        return None
 
     def lock(self):
         self.locked = True
@@ -95,6 +100,7 @@ class Scooter:
             "lat": round(self.lat, 6),
             "lon": round(self.lon, 6),
             "status": self.status,
+            "fault": self.fault,
         }
 
 
@@ -140,22 +146,41 @@ class Fleet:
     def handle_command(self, topic, payload, now):
         scooter_id = scooter_id_from_topic(topic)
         try:
-            command = json.loads(payload)["command"]
+            message = json.loads(payload)
+            command_id = message["commandId"]
         except (ValueError, KeyError, TypeError):
-            print(f"Error: invalid command on {topic}: {payload!r}")
-            return
+            return []
+        command = message.get("command")
+        messages = []
         with self._lock:
             scooter = self._scooters.get(scooter_id)
             if scooter is None:
-                print(f"Error: command for unknown scooter {scooter_id}")
+                reason = "UNKNOWN_SCOOTER"
             elif command == "UNLOCK":
-                scooter.unlock(self.hubs.values())
+                reason = scooter.unlock(self.hubs.values())
             elif command == "LOCK":
                 scooter.lock()
+                reason = None
             elif command == "FAULT":
-                return scooter.events_topic(), scooter.fault_event(now)
+                if not scooter.fault:
+                    scooter.fault = True
+                    messages.append((scooter.events_topic(), scooter.fault_event(now)))
+                reason = None
+            elif command == "CLEAR_FAULT":
+                scooter.fault = False
+                reason = None
             else:
-                print(f"Error: unknown command {command} for scooter {scooter_id}")
+                reason = "UNKNOWN_COMMAND"
+        response = {
+            "scooterId": scooter_id,
+            "timestamp": now.isoformat(),
+            "commandId": command_id,
+            "command": command,
+            "status": "REJECTED" if reason else "COMPLETED",
+            "reason": reason,
+        }
+        messages.append((f"rayvolt/scooters/{scooter_id}/responses", response))
+        return messages
 
     def tick(self, seconds, now):
         with self._lock:
@@ -175,9 +200,8 @@ def on_message(client, fleet, msg):
     elif msg.topic.startswith("rayvolt/fleet/"):
         fleet.handle_fleet_message(msg.topic, msg.payload)
     else:
-        event = fleet.handle_command(msg.topic, msg.payload, datetime.now(timezone.utc))
-        if event:
-            client.publish(event[0], json.dumps(event[1]), qos=1)
+        for topic, message in fleet.handle_command(msg.topic, msg.payload, datetime.now(timezone.utc)):
+            client.publish(topic, json.dumps(message), qos=1)
 
 
 def connect(fleet):
