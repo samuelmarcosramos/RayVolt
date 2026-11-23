@@ -203,16 +203,31 @@ class RateMeter:
         self.period = period
         self.clock = clock
         self.start = clock()
-        self.count = 0
+        self.sent = 0
+        self.acked = 0
+        self._lock = threading.Lock()
 
-    def add(self, readings):
-        self.count += readings
-        elapsed = self.clock() - self.start
-        if elapsed < self.period:
-            return None
-        line = f"Rate: {self.count / elapsed:.0f} readings/s ({self.count} sent in {elapsed:.0f} s)"
-        self.start = self.clock()
-        self.count = 0
+    def add_sent(self, readings):
+        with self._lock:
+            self.sent += readings
+
+    def add_acked(self):
+        with self._lock:
+            self.acked += 1
+
+    def report(self, target):
+        with self._lock:
+            elapsed = self.clock() - self.start
+            if elapsed < self.period:
+                return None
+            rate = self.acked / elapsed
+            line = (f"Rate: {rate:.0f} readings/s (target {target:.0f}): "
+                    f"{self.sent} sent, {self.acked} acknowledged in {elapsed:.0f} s")
+            self.start = self.clock()
+            self.sent = 0
+            self.acked = 0
+        if rate < 0.95 * target:
+            return f"Warning: {line}"
         return line
 
 
@@ -227,8 +242,9 @@ def on_message(client, fleet, msg):
             client.publish(topic, json.dumps(message), qos=1)
 
 
-def connect(fleet):
+def connect(fleet, meter):
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+    client.on_publish = lambda *_: meter.add_acked()
     client.on_connect = lambda c, *_: c.subscribe(HUBS_TOPIC, qos=1)
     client.on_message = lambda c, u, msg: on_message(c, fleet, msg)
     while True:
@@ -242,21 +258,24 @@ def connect(fleet):
 
 def main():
     fleet = Fleet(random.Random(SEED) if SEED else None)
-    client = connect(fleet)
+    meter = RateMeter()
+    client = connect(fleet, meter)
     client.loop_start()
     print(f"Connected to {BROKER_HOST}:{BROKER_PORT}, waiting for hubs on {HUBS_TOPIC}")
-    meter = RateMeter()
+    next_tick = time.monotonic()
     while True:
+        rate = meter.report(len(fleet.scooters()) / PUBLISH_INTERVAL)
+        if rate:
+            print(rate)
         now = datetime.now(timezone.utc)
         readings = fleet.tick(PUBLISH_INTERVAL, now)
         for topic, telemetry in readings:
             message = json.dumps(telemetry)
             client.publish(topic, message, qos=1)
             print(f"Sent {message}")
-        rate = meter.add(len(readings))
-        if rate:
-            print(rate)
-        time.sleep(PUBLISH_INTERVAL)
+        meter.add_sent(len(readings))
+        next_tick += PUBLISH_INTERVAL
+        time.sleep(max(0, next_tick - time.monotonic()))
 
 
 if __name__ == "__main__":

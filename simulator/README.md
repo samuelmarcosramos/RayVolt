@@ -54,7 +54,10 @@ Sending `UNLOCK` to an unlocked scooter, or `LOCK` to a locked one, is `COMPLETE
 ## Load test
 
 Register many scooters through the backend API (for example 1000), then start the simulator with `PUBLISH_INTERVAL=1`.
-Every 10 s the log shows the real rate, for example `Rate: 998 readings/s (9980 sent in 10 s)`.
+Every 10 s the log shows the rate of readings the broker confirmed (QoS 1), for example
+`Rate: 998 readings/s (target 1000): 10000 sent, 9980 acknowledged in 10 s`.
+The target is the number of scooters divided by `PUBLISH_INTERVAL`. Below 95% of the target the line starts with `Warning:`.
+The first report can be low while the scooters are still arriving from the backend, so read the ones after it.
 
 ## Run and test
 

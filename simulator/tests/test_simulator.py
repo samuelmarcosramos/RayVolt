@@ -407,22 +407,54 @@ class FakeClock:
         return self.now
 
 
-def test_rate_is_reported_every_10_seconds():
-    clock = FakeClock()
+def meter_with(clock, sent, acked):
     meter = RateMeter(clock=clock)
+    meter.add_sent(sent)
+    for _ in range(acked):
+        meter.add_acked()
+    return meter
+
+
+def test_no_report_before_10_seconds():
+    clock = FakeClock()
+    meter = meter_with(clock, 5000, 5000)
 
     clock.now = 5
-    assert meter.add(5000) is None
+    assert meter.report(1000) is None
+
+
+def test_rate_counts_acknowledged_readings():
+    clock = FakeClock()
+    meter = meter_with(clock, 10000, 9980)
 
     clock.now = 10
-    assert meter.add(5000) == "Rate: 1000 readings/s (10000 sent in 10 s)"
+    assert meter.report(1000) == "Rate: 998 readings/s (target 1000): 10000 sent, 9980 acknowledged in 10 s"
+
+
+def test_warning_below_95_percent_of_target():
+    clock = FakeClock()
+    meter = meter_with(clock, 10000, 9000)
+
+    clock.now = 10
+    assert meter.report(1000) == "Warning: Rate: 900 readings/s (target 1000): 10000 sent, 9000 acknowledged in 10 s"
+
+
+def test_exactly_95_percent_is_not_a_warning():
+    clock = FakeClock()
+    meter = meter_with(clock, 10000, 9500)
+
+    clock.now = 10
+    assert not meter.report(1000).startswith("Warning")
 
 
 def test_rate_starts_again_after_a_report():
     clock = FakeClock()
-    meter = RateMeter(clock=clock)
+    meter = meter_with(clock, 10000, 10000)
     clock.now = 10
-    meter.add(10000)
+    meter.report(1000)
 
+    meter.add_sent(500)
+    for _ in range(500):
+        meter.add_acked()
     clock.now = 20
-    assert meter.add(500) == "Rate: 50 readings/s (500 sent in 10 s)"
+    assert meter.report(50) == "Rate: 50 readings/s (target 50): 500 sent, 500 acknowledged in 10 s"
