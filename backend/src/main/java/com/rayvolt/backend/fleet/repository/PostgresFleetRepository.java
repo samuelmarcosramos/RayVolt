@@ -8,7 +8,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Arrays;
-import java.util.NoSuchElementException;
+import com.rayvolt.backend.common.exception.NotFoundException;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -54,7 +54,7 @@ public class PostgresFleetRepository implements FleetRepository {
         for (UUID id : Arrays.stream(hubIds).distinct().sorted().toList()) {
             jdbc.sql("SELECT id FROM hubs WHERE id = :id FOR UPDATE").param("id", id)
                     .query(UUID.class).optional()
-                    .orElseThrow(() -> new NoSuchElementException("Hub not found"));
+                    .orElseThrow(() -> new NotFoundException("Hub not found"));
         }
     }
 
@@ -75,7 +75,7 @@ public class PostgresFleetRepository implements FleetRepository {
     public boolean hasSpace(UUID hubId) {
         int capacity = jdbc.sql("SELECT capacity FROM hubs WHERE id = :id").param("id", hubId)
                 .query(Integer.class).optional()
-                .orElseThrow(() -> new NoSuchElementException("Hub not found"));
+                .orElseThrow(() -> new NotFoundException("Hub not found"));
         long occupied = jdbc.sql("SELECT count(*) FROM scooters WHERE hub_id = :id AND status <> 'RETIRED'")
                 .param("id", hubId).query(Long.class).single();
         return occupied < capacity;

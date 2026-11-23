@@ -1,5 +1,6 @@
 package com.rayvolt.backend.fleet.controller;
 
+import com.rayvolt.backend.common.exception.BadRequestException;
 import com.rayvolt.backend.fleet.model.Scooter;
 import com.rayvolt.backend.fleet.service.FleetService;
 import org.springframework.http.ResponseEntity;
@@ -43,7 +44,7 @@ public class FleetController {
     public record ScooterRequest(String type, UUID hubId) {
         public ScooterRequest {
             if (type == null || type.isBlank() || hubId == null) {
-                throw new IllegalArgumentException("Scooter type and hub ID are required");
+                throw new BadRequestException("Scooter type and hub ID are required");
             }
         }
     }
