@@ -1,6 +1,8 @@
 package com.rayvolt.backend.mqtt;
 
+import com.rayvolt.backend.model.CommandReply;
 import com.rayvolt.backend.model.PositionStatus;
+import com.rayvolt.backend.model.ScooterCommand;
 import com.rayvolt.backend.model.TelemetryReading;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -79,6 +81,39 @@ class MqttScooterAdapterTest {
     void faultEventWithoutTypeIsRejected() {
         String noType = FAULT_EVENT.replace(", \"type\": \"FAULT\"", "");
         assertThatThrownBy(() -> MqttScooterAdapter.parseFault(EVENTS_TOPIC, noType))
+                .isInstanceOf(RuntimeException.class);
+    }
+
+    private static final String RESPONSES_TOPIC = "rayvolt/scooters/7/responses";
+    private static final String REJECTED_REPLY = """
+            {"scooterId": 7, "timestamp": "2026-11-22T10:00:00.123456+00:00", "commandId": "abc",
+             "command": "UNLOCK", "status": "REJECTED", "reason": "SCOOTER_FAULT"}""";
+
+    @Test
+    void simulatorRejectedReplyIsRead() {
+        assertThat(MqttScooterAdapter.parseReply(RESPONSES_TOPIC, REJECTED_REPLY)).isEqualTo(new CommandReply(7L,
+                Instant.parse("2026-11-22T10:00:00.123456Z"), "abc", ScooterCommand.UNLOCK, CommandReply.Status.REJECTED,
+                "SCOOTER_FAULT"));
+    }
+
+    @Test
+    void completedReplyHasNoReason() {
+        String completed = REJECTED_REPLY.replace("REJECTED", "COMPLETED").replace("\"SCOOTER_FAULT\"", "null");
+        CommandReply reply = MqttScooterAdapter.parseReply(RESPONSES_TOPIC, completed);
+        assertThat(reply.rejected()).isFalse();
+        assertThat(reply.reason()).isNull();
+    }
+
+    @Test
+    void replyIdMustMatchTheTopic() {
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> MqttScooterAdapter.parseReply("rayvolt/scooters/8/responses", REJECTED_REPLY));
+    }
+
+    @Test
+    void replyWithoutCommandIdIsRejected() {
+        String noId = REJECTED_REPLY.replace("\"commandId\": \"abc\",", "");
+        assertThatThrownBy(() -> MqttScooterAdapter.parseReply(RESPONSES_TOPIC, noId))
                 .isInstanceOf(RuntimeException.class);
     }
 }

@@ -3,6 +3,9 @@ package com.rayvolt.backend.mqtt;
 import com.github.dockerjava.api.model.ExposedPort;
 import com.github.dockerjava.api.model.PortBinding;
 import com.github.dockerjava.api.model.Ports;
+import com.rayvolt.backend.model.CommandReply;
+import com.rayvolt.backend.model.ScooterCommand;
+import com.rayvolt.backend.service.CommandService;
 import com.rayvolt.backend.service.FleetService;
 import com.rayvolt.backend.service.FleetSyncService;
 import org.eclipse.paho.client.mqttv3.MqttClient;
@@ -26,7 +29,9 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(properties = "rayvolt.mqtt.enabled=true")
@@ -38,6 +43,7 @@ class MqttScooterAdapterIT {
     @Autowired private FleetSyncService sync;
     @Autowired private FleetService fleet;
     @Autowired private JdbcClient jdbc;
+    @Autowired private CommandService commands;
 
     @DynamicPropertySource
     static void brokerUrl(DynamicPropertyRegistry registry) {
@@ -238,5 +244,39 @@ class MqttScooterAdapterIT {
                 .replace("\"fault\": false", "\"fault\": true"));
         waitForStatus(scooter, "MAINTENANCE");
         assertThat(state(scooter).orElseThrow().get("FAULT")).isEqualTo(true);
+    }
+
+    @Test
+    void commandReachesTheScooterAndItsReplyReachesTheCaller() throws Exception {
+        Map<String, String> received = new ConcurrentHashMap<>();
+        MqttClient scooter = new MqttClient(brokerUrl(), MqttClient.generateClientId(), new MemoryPersistence());
+        scooter.connect();
+        try {
+            scooter.subscribe("rayvolt/scooters/7/commands", 1, (topic, message) -> {
+                String body = new String(message.getPayload(), StandardCharsets.UTF_8);
+                received.put("command", body);
+                String commandId = body.replaceAll(".*\"commandId\":\"([^\"]+)\".*", "$1");
+                MqttMessage reply = new MqttMessage("""
+                        {"scooterId": 7, "timestamp": "2026-11-24T10:00:00Z", "commandId": "%s",
+                         "command": "UNLOCK", "status": "REJECTED", "reason": "SCOOTER_FAULT"}"""
+                        .formatted(commandId).getBytes(StandardCharsets.UTF_8));
+                reply.setQos(1);
+                new Thread(() -> {
+                    try {
+                        scooter.publish("rayvolt/scooters/7/responses", reply);
+                    } catch (Exception exception) {
+                        throw new IllegalStateException(exception);
+                    }
+                }).start();
+            });
+            CompletableFuture<CommandReply> future = commands.send(7L, ScooterCommand.UNLOCK);
+            CommandReply reply = future.get(5, TimeUnit.SECONDS);
+            assertThat(received.get("command")).matches("\\{\"command\":\"UNLOCK\",\"commandId\":\"[0-9a-f-]{36}\"}");
+            assertThat(reply.rejected()).isTrue();
+            assertThat(reply.reason()).isEqualTo("SCOOTER_FAULT");
+        } finally {
+            scooter.disconnect();
+            scooter.close();
+        }
     }
 }

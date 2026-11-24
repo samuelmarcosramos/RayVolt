@@ -1,6 +1,8 @@
 package com.rayvolt.backend.mqtt;
 
+import com.rayvolt.backend.model.CommandReply;
 import com.rayvolt.backend.model.Hub;
+import com.rayvolt.backend.model.ScooterCommand;
 import com.rayvolt.backend.model.TelemetryReading;
 import com.rayvolt.backend.service.ScooterGateway;
 import com.rayvolt.backend.service.TelemetryService;
@@ -30,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Consumer;
 
 @Component
 @ConditionalOnProperty(name = "rayvolt.mqtt.enabled", havingValue = "true")
@@ -37,10 +40,12 @@ public class MqttScooterAdapter implements ScooterGateway, DisposableBean {
     private static final Logger LOG = LoggerFactory.getLogger(MqttScooterAdapter.class);
     private static final String TELEMETRY_TOPIC = "rayvolt/scooters/+/telemetry";
     private static final String EVENTS_TOPIC = "rayvolt/scooters/+/events";
+    private static final String RESPONSES_TOPIC = "rayvolt/scooters/+/responses";
     private static final long TIMEOUT_MILLIS = 5000;
     private final MqttPahoMessageHandler publisher;
     private final MqttPahoMessageDrivenChannelAdapter subscriber;
     private final List<Runnable> connectedActions = new CopyOnWriteArrayList<>();
+    private final List<Consumer<CommandReply>> replyListeners = new CopyOnWriteArrayList<>();
     private static final JsonMapper JSON = JsonMapper.builder()
             .enable(DeserializationFeature.FAIL_ON_MISSING_CREATOR_PROPERTIES)
             .enable(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES)
@@ -71,7 +76,7 @@ public class MqttScooterAdapter implements ScooterGateway, DisposableBean {
         DirectChannel received = new DirectChannel();
         received.subscribe(message -> receive(
                 (String) message.getHeaders().get(MqttHeaders.RECEIVED_TOPIC), (String) message.getPayload()));
-        subscriber = new MqttPahoMessageDrivenChannelAdapter(clientId + "-in", factory, TELEMETRY_TOPIC, EVENTS_TOPIC);
+        subscriber = new MqttPahoMessageDrivenChannelAdapter(clientId + "-in", factory, TELEMETRY_TOPIC, EVENTS_TOPIC, RESPONSES_TOPIC);
         subscriber.setQos(1);
         subscriber.setCompletionTimeout(TIMEOUT_MILLIS);
         subscriber.setDisconnectCompletionTimeout(TIMEOUT_MILLIS);
@@ -99,9 +104,17 @@ public class MqttScooterAdapter implements ScooterGateway, DisposableBean {
         connectedActions.add(action);
     }
 
+    @Override
+    public void onReply(Consumer<CommandReply> listener) {
+        replyListeners.add(listener);
+    }
+
     private void receive(String topic, String payload) {
         try {
-            if (topic.endsWith("/events")) {
+            if (topic.endsWith("/responses")) {
+                CommandReply reply = parseReply(topic, payload);
+                replyListeners.forEach(listener -> listener.accept(reply));
+            } else if (topic.endsWith("/events")) {
                 telemetry.recordFault(parseFault(topic, payload));
             } else {
                 telemetry.record(parseTelemetry(topic, payload));
@@ -124,6 +137,12 @@ public class MqttScooterAdapter implements ScooterGateway, DisposableBean {
         }
         requireTopicId(topic, event.scooterId());
         return event.scooterId();
+    }
+
+    static CommandReply parseReply(String topic, String payload) {
+        CommandReply reply = JSON.readValue(payload, CommandReply.class);
+        requireTopicId(topic, reply.scooterId());
+        return reply;
     }
 
     private static void requireTopicId(String topic, Long scooterId) {
@@ -158,10 +177,22 @@ public class MqttScooterAdapter implements ScooterGateway, DisposableBean {
         publishRetained("rayvolt/fleet/" + scooterId, Map.of("hubId", hubId, "status", "RETIRED"));
     }
 
+    @Override
+    public void sendCommand(Long scooterId, String commandId, ScooterCommand command) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("command", command.name());
+        body.put("commandId", commandId);
+        publish("rayvolt/scooters/" + scooterId + "/commands", body, false);
+    }
+
     private void publishRetained(String topic, Object body) {
+        publish(topic, body, true);
+    }
+
+    private void publish(String topic, Object body, boolean retained) {
         publisher.handleMessage(MessageBuilder.withPayload(JSON.writeValueAsString(body))
                 .setHeader(MqttHeaders.TOPIC, topic)
-                .setHeader(MqttHeaders.RETAINED, true)
+                .setHeader(MqttHeaders.RETAINED, retained)
                 .build());
     }
 
