@@ -147,12 +147,16 @@ class MqttScooterAdapterIT {
     }
 
     private void publish(Long scooterId, String payload) throws Exception {
+        publish(scooterId, "telemetry", payload);
+    }
+
+    private void publish(Long scooterId, String channel, String payload) throws Exception {
         MqttClient client = new MqttClient(brokerUrl(), MqttClient.generateClientId(), new MemoryPersistence());
         client.connect();
         try {
             MqttMessage message = new MqttMessage(payload.getBytes(StandardCharsets.UTF_8));
             message.setQos(1);
-            client.publish("rayvolt/scooters/" + scooterId + "/telemetry", message);
+            client.publish("rayvolt/scooters/" + scooterId + "/" + channel, message);
         } finally {
             client.disconnect();
             client.close();
@@ -205,5 +209,34 @@ class MqttScooterAdapterIT {
         publish(scooter, "not json");
         publish(scooter, telemetry(scooter, Instant.parse("2026-11-24T10:00:00Z"), 40.612, "AT_HUB"));
         assertThat(waitForState(scooter, "AT_HUB").get("BATTERY")).isEqualTo(90);
+    }
+
+    private String scooterStatus(Long scooterId) {
+        return jdbc.sql("SELECT status FROM scooters WHERE id = :id").param("id", scooterId).query(String.class).single();
+    }
+
+    private void waitForStatus(Long scooterId, String expected) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + 5_000;
+        while (!expected.equals(scooterStatus(scooterId)) && System.currentTimeMillis() < deadline) {
+            Thread.sleep(50);
+        }
+        assertThat(scooterStatus(scooterId)).as("Scooter status within 5 s").isEqualTo(expected);
+    }
+
+    @Test
+    void faultEventMovesAnAvailableScooterToMaintenance() throws Exception {
+        Long scooter = insertScooter("Standard", 1, "AVAILABLE");
+        publish(scooter, "events", "{\"scooterId\": %d, \"timestamp\": \"2026-11-24T10:00:00Z\", \"type\": \"FAULT\"}"
+                .formatted(scooter));
+        waitForStatus(scooter, "MAINTENANCE");
+    }
+
+    @Test
+    void faultInTelemetryMovesAReservedScooterToMaintenance() throws Exception {
+        Long scooter = insertScooter("Standard", 1, "RESERVED");
+        publish(scooter, telemetry(scooter, Instant.parse("2026-11-24T10:00:00Z"), 40.612, "AT_HUB")
+                .replace("\"fault\": false", "\"fault\": true"));
+        waitForStatus(scooter, "MAINTENANCE");
+        assertThat(state(scooter).orElseThrow().get("FAULT")).isEqualTo(true);
     }
 }

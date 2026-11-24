@@ -30,8 +30,16 @@ class TelemetryServiceTest {
                 null, lat, -8.7175, status, false);
     }
 
-    private void scooterIs(ScooterStatus status) {
-        when(scooters.findById(7L)).thenReturn(Optional.of(new Scooter(7L, "Standard", 1L, status)));
+    private TelemetryReading faultReading() {
+        return new TelemetryReading(7L, Instant.parse("2026-11-24T10:00:00Z"), 80, true, 0,
+                1L, 40.612, -8.7175, PositionStatus.AT_HUB, true);
+    }
+
+    private Scooter scooterIs(ScooterStatus status) {
+        Scooter scooter = new Scooter(7L, "Standard", 1L, status);
+        when(scooters.findById(7L)).thenReturn(Optional.of(scooter));
+        when(scooters.findByIdForUpdate(7L)).thenReturn(Optional.of(scooter));
+        return scooter;
     }
 
     @Test
@@ -80,5 +88,60 @@ class TelemetryServiceTest {
         scooterIs(ScooterStatus.RETIRED);
         service.record(reading(0, 40.612, PositionStatus.AT_HUB));
         verifyNoInteractions(states);
+    }
+
+    @Test
+    void readingWithoutFaultDoesNotTouchTheScooterStatus() {
+        scooterIs(ScooterStatus.AVAILABLE);
+        when(states.findById(7L)).thenReturn(Optional.empty());
+        service.record(reading(0, 40.612, PositionStatus.AT_HUB));
+        verify(scooters, never()).findByIdForUpdate(any());
+        verify(scooters, never()).save(any());
+    }
+
+    @Test
+    void faultInTelemetryMovesAnAvailableScooterToMaintenance() {
+        Scooter scooter = scooterIs(ScooterStatus.AVAILABLE);
+        when(states.findById(7L)).thenReturn(Optional.empty());
+        service.record(faultReading());
+        assertThat(scooter.getStatus()).isEqualTo(ScooterStatus.MAINTENANCE);
+        verify(scooters).save(scooter);
+    }
+
+    @Test
+    void faultInTelemetryDuringARideKeepsTheScooterInUseAndStoresTheFault() {
+        Scooter scooter = scooterIs(ScooterStatus.IN_USE);
+        when(states.findById(7L)).thenReturn(Optional.empty());
+        service.record(faultReading());
+        assertThat(scooter.getStatus()).isEqualTo(ScooterStatus.IN_USE);
+        verify(scooters, never()).save(any());
+        ArgumentCaptor<ScooterState> saved = ArgumentCaptor.forClass(ScooterState.class);
+        verify(states).save(saved.capture());
+        assertThat(saved.getValue().isFault()).isTrue();
+    }
+
+    @Test
+    void faultEventMovesAReservedScooterToMaintenance() {
+        Scooter scooter = scooterIs(ScooterStatus.RESERVED);
+        service.recordFault(7L);
+        assertThat(scooter.getStatus()).isEqualTo(ScooterStatus.MAINTENANCE);
+        verify(scooters).save(scooter);
+    }
+
+    @Test
+    void repeatedFaultOnAScooterInMaintenanceSavesNothing() {
+        scooterIs(ScooterStatus.MAINTENANCE);
+        service.recordFault(7L);
+        verify(scooters, never()).save(any());
+    }
+
+    @Test
+    void faultForUnknownOrRetiredScooterIsIgnored() {
+        when(scooters.findByIdForUpdate(8L)).thenReturn(Optional.empty());
+        service.recordFault(8L);
+        Scooter retired = scooterIs(ScooterStatus.RETIRED);
+        service.recordFault(7L);
+        assertThat(retired.getStatus()).isEqualTo(ScooterStatus.RETIRED);
+        verify(scooters, never()).save(any());
     }
 }

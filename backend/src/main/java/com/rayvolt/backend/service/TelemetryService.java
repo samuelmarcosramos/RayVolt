@@ -1,5 +1,6 @@
 package com.rayvolt.backend.service;
 
+import com.rayvolt.backend.model.Scooter;
 import com.rayvolt.backend.model.ScooterState;
 import com.rayvolt.backend.model.ScooterStatus;
 import com.rayvolt.backend.model.TelemetryReading;
@@ -46,5 +47,25 @@ public class TelemetryService {
             state.update(reading, clock.instant());
         }
         states.save(state);
+        if (reading.fault()) {
+            recordFault(reading.scooterId());
+        }
+    }
+
+    @Transactional
+    public void recordFault(Long scooterId) {
+        Optional<Scooter> found = scooters.findByIdForUpdate(scooterId)
+                .filter(scooter -> scooter.getStatus() != ScooterStatus.RETIRED);
+        if (found.isEmpty()) {
+            LOG.warn("Ignored fault for unknown or retired scooter {}", scooterId);
+            return;
+        }
+        Scooter scooter = found.get();
+        ScooterStatus before = scooter.getStatus();
+        scooter.markFaulty();
+        if (scooter.getStatus() != before) {
+            scooters.save(scooter);
+            LOG.info("Scooter {} reported a fault and moved from {} to {}", scooterId, before, scooter.getStatus());
+        }
     }
 }

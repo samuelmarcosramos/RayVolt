@@ -53,4 +53,32 @@ class MqttScooterAdapterTest {
         assertThatThrownBy(() -> MqttScooterAdapter.parseTelemetry(TOPIC, "not json"))
                 .isInstanceOf(RuntimeException.class);
     }
+
+    private static final String EVENTS_TOPIC = "rayvolt/scooters/7/events";
+    private static final String FAULT_EVENT = """
+            {"scooterId": 7, "timestamp": "2026-11-22T10:00:00.123456+00:00", "type": "FAULT"}""";
+
+    @Test
+    void simulatorFaultEventIsRead() {
+        assertThat(MqttScooterAdapter.parseFault(EVENTS_TOPIC, FAULT_EVENT)).isEqualTo(7L);
+    }
+
+    @Test
+    void otherEventTypesAreRejected() {
+        String other = FAULT_EVENT.replace("FAULT", "CRASH");
+        assertThatIllegalArgumentException().isThrownBy(() -> MqttScooterAdapter.parseFault(EVENTS_TOPIC, other));
+    }
+
+    @Test
+    void faultEventIdMustMatchTheTopic() {
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> MqttScooterAdapter.parseFault("rayvolt/scooters/8/events", FAULT_EVENT));
+    }
+
+    @Test
+    void faultEventWithoutTypeIsRejected() {
+        String noType = FAULT_EVENT.replace(", \"type\": \"FAULT\"", "");
+        assertThatThrownBy(() -> MqttScooterAdapter.parseFault(EVENTS_TOPIC, noType))
+                .isInstanceOf(RuntimeException.class);
+    }
 }

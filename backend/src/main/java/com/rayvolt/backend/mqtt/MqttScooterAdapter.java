@@ -24,6 +24,7 @@ import org.springframework.integration.support.MessageBuilder;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.json.JsonMapper;
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +36,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public class MqttScooterAdapter implements ScooterGateway, DisposableBean {
     private static final Logger LOG = LoggerFactory.getLogger(MqttScooterAdapter.class);
     private static final String TELEMETRY_TOPIC = "rayvolt/scooters/+/telemetry";
+    private static final String EVENTS_TOPIC = "rayvolt/scooters/+/events";
     private static final long TIMEOUT_MILLIS = 5000;
     private final MqttPahoMessageHandler publisher;
     private final MqttPahoMessageDrivenChannelAdapter subscriber;
@@ -69,7 +71,7 @@ public class MqttScooterAdapter implements ScooterGateway, DisposableBean {
         DirectChannel received = new DirectChannel();
         received.subscribe(message -> receive(
                 (String) message.getHeaders().get(MqttHeaders.RECEIVED_TOPIC), (String) message.getPayload()));
-        subscriber = new MqttPahoMessageDrivenChannelAdapter(clientId + "-in", factory, TELEMETRY_TOPIC);
+        subscriber = new MqttPahoMessageDrivenChannelAdapter(clientId + "-in", factory, TELEMETRY_TOPIC, EVENTS_TOPIC);
         subscriber.setQos(1);
         subscriber.setCompletionTimeout(TIMEOUT_MILLIS);
         subscriber.setDisconnectCompletionTimeout(TIMEOUT_MILLIS);
@@ -99,19 +101,38 @@ public class MqttScooterAdapter implements ScooterGateway, DisposableBean {
 
     private void receive(String topic, String payload) {
         try {
-            telemetry.record(parseTelemetry(topic, payload));
+            if (topic.endsWith("/events")) {
+                telemetry.recordFault(parseFault(topic, payload));
+            } else {
+                telemetry.record(parseTelemetry(topic, payload));
+            }
         } catch (RuntimeException exception) {
-            LOG.warn("Ignored telemetry on {}: {}", topic, exception.getMessage());
+            LOG.warn("Ignored message on {}: {}", topic, exception.getMessage());
         }
     }
 
     static TelemetryReading parseTelemetry(String topic, String payload) {
         TelemetryReading reading = JSON.readValue(payload, TelemetryReading.class);
-        String topicId = topic.split("/")[2];
-        if (!topicId.equals(String.valueOf(reading.scooterId()))) {
-            throw new IllegalArgumentException("scooterId " + reading.scooterId() + " does not match the topic");
-        }
+        requireTopicId(topic, reading.scooterId());
         return reading;
+    }
+
+    static Long parseFault(String topic, String payload) {
+        EventMessage event = JSON.readValue(payload, EventMessage.class);
+        if (!"FAULT".equals(event.type())) {
+            throw new IllegalArgumentException("unknown event type " + event.type());
+        }
+        requireTopicId(topic, event.scooterId());
+        return event.scooterId();
+    }
+
+    private static void requireTopicId(String topic, Long scooterId) {
+        if (!topic.split("/")[2].equals(String.valueOf(scooterId))) {
+            throw new IllegalArgumentException("scooterId " + scooterId + " does not match the topic");
+        }
+    }
+
+    record EventMessage(Long scooterId, Instant timestamp, String type) {
     }
 
     @Override

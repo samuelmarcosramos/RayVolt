@@ -66,6 +66,12 @@ public class Scooter {
         status = ScooterStatus.RETIRED;
     }
 
+    public void markFaulty() {
+        if (status == ScooterStatus.AVAILABLE || status == ScooterStatus.RESERVED) {
+            status = ScooterStatus.MAINTENANCE;
+        }
+    }
+
     public boolean visibleToUsers() {
         return status != ScooterStatus.RETIRED;
     }
