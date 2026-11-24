@@ -9,4 +9,6 @@ public interface ScooterGateway {
     void registerScooter(Long scooterId, Long hubId);
 
     void retireScooter(Long scooterId, Long hubId);
+
+    void onConnected(Runnable action);
 }
