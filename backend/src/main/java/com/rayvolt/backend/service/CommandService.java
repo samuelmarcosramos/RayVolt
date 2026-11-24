@@ -5,8 +5,6 @@ import com.rayvolt.backend.model.ScooterCommand;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -27,7 +25,7 @@ public class CommandService {
         String commandId = UUID.randomUUID().toString();
         CompletableFuture<CommandReply> reply = new CompletableFuture<>();
         waiting.put(commandId, reply);
-        afterCommit(() -> publish(scooterId, commandId, command));
+        AfterCommit.run(() -> publish(scooterId, commandId, command));
         return reply;
     }
 
@@ -53,18 +51,5 @@ public class CommandService {
             LOG.info("Scooter {} rejected {}: {}", reply.scooterId(), reply.command(), reply.reason());
         }
         caller.complete(reply);
-    }
-
-    private static void afterCommit(Runnable action) {
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            action.run();
-            return;
-        }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                action.run();
-            }
-        });
     }
 }

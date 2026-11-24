@@ -2,6 +2,7 @@ package com.rayvolt.backend.service;
 
 import com.rayvolt.backend.model.PositionStatus;
 import com.rayvolt.backend.model.Scooter;
+import com.rayvolt.backend.model.ScooterLive;
 import com.rayvolt.backend.model.ScooterState;
 import com.rayvolt.backend.model.ScooterStatus;
 import com.rayvolt.backend.model.TelemetryReading;
@@ -23,7 +24,9 @@ class TelemetryServiceTest {
     private static final Instant NOW = Instant.parse("2026-11-24T10:00:01Z");
     private final ScooterRepository scooters = mock(ScooterRepository.class);
     private final ScooterStateRepository states = mock(ScooterStateRepository.class);
-    private final TelemetryService service = new TelemetryService(scooters, states, Clock.fixed(NOW, ZoneOffset.UTC));
+    private final SseService sse = mock(SseService.class);
+    private final TelemetryService service = new TelemetryService(scooters, states, Clock.fixed(NOW, ZoneOffset.UTC),
+            sse);
 
     private TelemetryReading reading(int second, double lat, PositionStatus status) {
         return new TelemetryReading(7L, Instant.parse("2026-11-24T10:00:00Z").plusSeconds(second), 80, false, 15,
@@ -143,5 +146,44 @@ class TelemetryServiceTest {
         service.recordFault(7L);
         assertThat(retired.getStatus()).isEqualTo(ScooterStatus.RETIRED);
         verify(scooters, never()).save(any());
+    }
+
+    @Test
+    void savedReadingIsSentToTheLiveDashboard() {
+        scooterIs(ScooterStatus.AVAILABLE);
+        when(states.findById(7L)).thenReturn(Optional.empty());
+        service.record(reading(0, 40.612, PositionStatus.AT_HUB));
+        verify(sse).publish(new ScooterLive(7L, ScooterStatus.AVAILABLE, 80, 40.612, -8.7175, PositionStatus.AT_HUB,
+                false, NOW));
+    }
+
+    @Test
+    void faultInTelemetryIsSentWithTheNewStatus() {
+        scooterIs(ScooterStatus.AVAILABLE);
+        when(states.findById(7L)).thenReturn(Optional.empty());
+        service.record(faultReading());
+        ArgumentCaptor<ScooterLive> sent = ArgumentCaptor.forClass(ScooterLive.class);
+        verify(sse).publish(sent.capture());
+        assertThat(sent.getValue().status()).isEqualTo(ScooterStatus.MAINTENANCE);
+        assertThat(sent.getValue().fault()).isTrue();
+    }
+
+    @Test
+    void ignoredReadingsAreNotSent() {
+        when(scooters.findById(7L)).thenReturn(Optional.empty());
+        service.record(reading(0, 40.612, PositionStatus.AT_HUB));
+        verifyNoInteractions(sse);
+    }
+
+    @Test
+    void faultEventIsSentOnlyWhenTheStatusChanges() {
+        scooterIs(ScooterStatus.AVAILABLE);
+        when(states.findById(7L)).thenReturn(Optional.empty());
+        service.recordFault(7L);
+        service.recordFault(7L);
+        ArgumentCaptor<ScooterLive> sent = ArgumentCaptor.forClass(ScooterLive.class);
+        verify(sse, times(1)).publish(sent.capture());
+        assertThat(sent.getValue()).isEqualTo(new ScooterLive(7L, ScooterStatus.MAINTENANCE, null, null, null, null,
+                false, null));
     }
 }

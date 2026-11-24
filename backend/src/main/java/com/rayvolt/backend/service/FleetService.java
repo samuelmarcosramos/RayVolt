@@ -11,8 +11,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -70,15 +68,12 @@ public class FleetService {
     }
 
     private void afterCommit(Runnable publish) {
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                try {
-                    publish.run();
-                } catch (RuntimeException exception) {
-                    LOG.warn("Could not send the scooter change, it is sent again on the next connection: {}",
-                            exception.getMessage());
-                }
+        AfterCommit.run(() -> {
+            try {
+                publish.run();
+            } catch (RuntimeException exception) {
+                LOG.warn("Could not send the scooter change, it is sent again on the next connection: {}",
+                        exception.getMessage());
             }
         });
     }

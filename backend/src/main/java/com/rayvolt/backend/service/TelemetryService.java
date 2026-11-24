@@ -1,6 +1,7 @@
 package com.rayvolt.backend.service;
 
 import com.rayvolt.backend.model.Scooter;
+import com.rayvolt.backend.model.ScooterLive;
 import com.rayvolt.backend.model.ScooterState;
 import com.rayvolt.backend.model.ScooterStatus;
 import com.rayvolt.backend.model.TelemetryReading;
@@ -19,19 +20,21 @@ public class TelemetryService {
     private final ScooterRepository scooters;
     private final ScooterStateRepository states;
     private final Clock clock;
+    private final SseService sse;
 
-    public TelemetryService(ScooterRepository scooters, ScooterStateRepository states, Clock clock) {
+    public TelemetryService(ScooterRepository scooters, ScooterStateRepository states, Clock clock,
+            SseService sse) {
         this.scooters = scooters;
         this.states = states;
         this.clock = clock;
+        this.sse = sse;
     }
 
     @Transactional
     public void record(TelemetryReading reading) {
-        boolean active = scooters.findById(reading.scooterId())
-                .filter(scooter -> scooter.getStatus() != ScooterStatus.RETIRED)
-                .isPresent();
-        if (!active) {
+        Optional<Scooter> active = scooters.findById(reading.scooterId())
+                .filter(scooter -> scooter.getStatus() != ScooterStatus.RETIRED);
+        if (active.isEmpty()) {
             LOG.warn("Ignored telemetry for unknown or retired scooter {}", reading.scooterId());
             return;
         }
@@ -47,25 +50,37 @@ public class TelemetryService {
             state.update(reading, clock.instant());
         }
         states.save(state);
+        Scooter scooter = active.get();
         if (reading.fault()) {
-            recordFault(reading.scooterId());
+            scooter = markFaulty(reading.scooterId()).orElse(scooter);
         }
+        ScooterLive update = ScooterLive.of(scooter, state);
+        AfterCommit.run(() -> sse.publish(update));
     }
 
     @Transactional
     public void recordFault(Long scooterId) {
+        markFaulty(scooterId).ifPresent(scooter -> {
+            ScooterLive update = ScooterLive.of(scooter, states.findById(scooterId).orElse(null));
+            AfterCommit.run(() -> sse.publish(update));
+        });
+    }
+
+    private Optional<Scooter> markFaulty(Long scooterId) {
         Optional<Scooter> found = scooters.findByIdForUpdate(scooterId)
                 .filter(scooter -> scooter.getStatus() != ScooterStatus.RETIRED);
         if (found.isEmpty()) {
             LOG.warn("Ignored fault for unknown or retired scooter {}", scooterId);
-            return;
+            return Optional.empty();
         }
         Scooter scooter = found.get();
         ScooterStatus before = scooter.getStatus();
         scooter.markFaulty();
-        if (scooter.getStatus() != before) {
-            scooters.save(scooter);
-            LOG.info("Scooter {} reported a fault and moved from {} to {}", scooterId, before, scooter.getStatus());
+        if (scooter.getStatus() == before) {
+            return Optional.empty();
         }
+        scooters.save(scooter);
+        LOG.info("Scooter {} reported a fault and moved from {} to {}", scooterId, before, scooter.getStatus());
+        return Optional.of(scooter);
     }
 }
