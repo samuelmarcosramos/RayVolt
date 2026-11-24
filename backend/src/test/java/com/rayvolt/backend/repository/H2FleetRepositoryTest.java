@@ -1,4 +1,4 @@
-package com.rayvolt.backend.fleet.repository;
+package com.rayvolt.backend.repository;
 
 class H2FleetRepositoryTest extends FleetRepositoryContract {
 }

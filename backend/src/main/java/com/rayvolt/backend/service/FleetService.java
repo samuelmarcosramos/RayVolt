@@ -1,9 +1,9 @@
-package com.rayvolt.backend.fleet.service;
+package com.rayvolt.backend.service;
 
 import com.rayvolt.backend.errors.ConflictException;
-import com.rayvolt.backend.fleet.model.Scooter;
-import com.rayvolt.backend.fleet.model.ScooterStatus;
-import com.rayvolt.backend.fleet.repository.FleetRepository;
+import com.rayvolt.backend.model.Scooter;
+import com.rayvolt.backend.model.ScooterStatus;
+import com.rayvolt.backend.repository.FleetRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.List;

@@ -1,8 +1,7 @@
-package com.rayvolt.backend.fleet;
+package com.rayvolt.backend.service;
 
-import com.rayvolt.backend.fleet.model.*;
-import com.rayvolt.backend.fleet.repository.FleetRepository;
-import com.rayvolt.backend.fleet.service.FleetService;
+import com.rayvolt.backend.model.*;
+import com.rayvolt.backend.repository.FleetRepository;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;

@@ -1,6 +1,6 @@
-package com.rayvolt.backend.fleet.repository;
+package com.rayvolt.backend.repository;
 
-import com.rayvolt.backend.fleet.model.Scooter;
+import com.rayvolt.backend.model.Scooter;
 import java.util.List;
 import java.util.Optional;
 

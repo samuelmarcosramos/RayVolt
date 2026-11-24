@@ -1,7 +1,7 @@
-package com.rayvolt.backend.fleet.repository;
+package com.rayvolt.backend.repository;
 
-import com.rayvolt.backend.fleet.model.Scooter;
-import com.rayvolt.backend.fleet.model.ScooterStatus;
+import com.rayvolt.backend.model.Scooter;
+import com.rayvolt.backend.model.ScooterStatus;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 import java.sql.ResultSet;

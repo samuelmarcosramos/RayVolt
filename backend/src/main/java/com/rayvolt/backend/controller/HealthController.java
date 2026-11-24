@@ -1,4 +1,4 @@
-package com.rayvolt.backend;
+package com.rayvolt.backend.controller;
 
 import java.util.Map;
 

@@ -1,4 +1,4 @@
-package com.rayvolt.backend.fleet.repository;
+package com.rayvolt.backend.repository;
 
 import org.junit.jupiter.api.AfterAll;
 import org.springframework.test.context.DynamicPropertyRegistry;

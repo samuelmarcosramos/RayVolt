@@ -1,4 +1,4 @@
-package com.rayvolt.backend.fleet.model;
+package com.rayvolt.backend.model;
 
 import com.rayvolt.backend.errors.BadRequestException;
 import com.rayvolt.backend.errors.ConflictException;
