@@ -3,6 +3,7 @@ package com.rayvolt.backend.mqtt;
 import com.github.dockerjava.api.model.ExposedPort;
 import com.github.dockerjava.api.model.PortBinding;
 import com.github.dockerjava.api.model.Ports;
+import com.rayvolt.backend.service.FleetService;
 import com.rayvolt.backend.service.FleetSyncService;
 import org.eclipse.paho.client.mqttv3.MqttClient;
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
@@ -31,6 +32,7 @@ class MqttScooterAdapterIT {
     private static GenericContainer<?> broker = startBroker();
 
     @Autowired private FleetSyncService sync;
+    @Autowired private FleetService fleet;
     @Autowired private JdbcClient jdbc;
 
     @DynamicPropertySource
@@ -123,5 +125,20 @@ class MqttScooterAdapterIT {
         assertThat(messages).as("Hubs and fleet are back on the new broker")
                 .containsKeys("rayvolt/hubs", "rayvolt/fleet/" + scooter);
         assertThat(messages.get("rayvolt/fleet/" + scooter)).isEqualTo("{\"hubId\":3}");
+    }
+
+    @Test
+    void createdAndRetiredScootersReachTheBroker() throws Exception {
+        Long created = fleet.add("Standard", 2L).getId();
+        assertThat(retainedMessages(10_000, "rayvolt/fleet/" + created).get("rayvolt/fleet/" + created))
+                .isEqualTo("{\"hubId\":2}");
+        fleet.retire(created);
+        Map<String, String> after = new ConcurrentHashMap<>();
+        long deadline = System.currentTimeMillis() + 10_000;
+        while (!String.valueOf(after.get("rayvolt/fleet/" + created)).contains("RETIRED")
+                && System.currentTimeMillis() < deadline) {
+            after = retainedMessages(500, "rayvolt/fleet/" + created);
+        }
+        assertThat(after.get("rayvolt/fleet/" + created)).contains("\"hubId\":2", "\"status\":\"RETIRED\"");
     }
 }

@@ -7,19 +7,26 @@ import com.rayvolt.backend.model.Scooter;
 import com.rayvolt.backend.model.ScooterStatus;
 import com.rayvolt.backend.repository.HubRepository;
 import com.rayvolt.backend.repository.ScooterRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import java.util.List;
 import java.util.stream.Stream;
 
 @Service
 public class FleetService {
+    private static final Logger LOG = LoggerFactory.getLogger(FleetService.class);
     private final ScooterRepository scooters;
     private final HubRepository hubs;
+    private final ScooterGateway gateway;
 
-    public FleetService(ScooterRepository scooters, HubRepository hubs) {
+    public FleetService(ScooterRepository scooters, HubRepository hubs, ScooterGateway gateway) {
         this.scooters = scooters;
         this.hubs = hubs;
+        this.gateway = gateway;
     }
 
     public List<Scooter> list() {
@@ -34,7 +41,9 @@ public class FleetService {
     public Scooter add(String type, Long hubId) {
         Scooter scooter = new Scooter(type, hubId);
         requireSpace(lockHubs(hubId).getFirst());
-        return scooters.save(scooter);
+        Scooter saved = scooters.save(scooter);
+        afterCommit(() -> gateway.registerScooter(saved.getId(), saved.getHubId()));
+        return saved;
     }
 
     @Transactional
@@ -55,7 +64,23 @@ public class FleetService {
         scooter.requireEditable();
         lockHubs(scooter.getHubId());
         scooter.retire();
-        return scooters.save(scooter);
+        Scooter saved = scooters.save(scooter);
+        afterCommit(() -> gateway.retireScooter(saved.getId(), saved.getHubId()));
+        return saved;
+    }
+
+    private void afterCommit(Runnable publish) {
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                try {
+                    publish.run();
+                } catch (RuntimeException exception) {
+                    LOG.warn("Could not send the scooter change, it is sent again on the next connection: {}",
+                            exception.getMessage());
+                }
+            }
+        });
     }
 
     private Scooter find(Long id) {

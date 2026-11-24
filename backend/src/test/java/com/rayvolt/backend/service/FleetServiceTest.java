@@ -8,11 +8,14 @@ import com.rayvolt.backend.model.Scooter;
 import com.rayvolt.backend.model.ScooterStatus;
 import com.rayvolt.backend.repository.HubRepository;
 import com.rayvolt.backend.repository.ScooterRepository;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import java.util.Optional;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -24,10 +27,12 @@ class FleetServiceTest {
     private final Long destination = 2L;
     private final ScooterRepository scooters = mock(ScooterRepository.class);
     private final HubRepository hubs = mock(HubRepository.class);
-    private final FleetService service = new FleetService(scooters, hubs);
+    private final ScooterGateway gateway = mock(ScooterGateway.class);
+    private final FleetService service = new FleetService(scooters, hubs, gateway);
 
     @BeforeEach
     void setUp() {
+        TransactionSynchronizationManager.initSynchronization();
         when(hubs.findByIdForUpdate(hub)).thenReturn(Optional.of(new Hub(hub, "Main Gate", 2, null, null)));
         when(hubs.findByIdForUpdate(destination)).thenReturn(Optional.of(new Hub(destination, "Warehouse", 2, null, null)));
         when(scooters.save(any())).thenAnswer(call -> {
@@ -35,6 +40,15 @@ class FleetServiceTest {
             return scooter.getId() != null ? scooter
                     : new Scooter(7L, scooter.getType(), scooter.getHubId(), scooter.getStatus());
         });
+    }
+
+    @AfterEach
+    void clearSynchronization() {
+        TransactionSynchronizationManager.clearSynchronization();
+    }
+
+    private void commit() {
+        TransactionSynchronizationManager.getSynchronizations().forEach(TransactionSynchronization::afterCommit);
     }
 
     private Scooter stored(ScooterStatus status) {
@@ -121,5 +135,50 @@ class FleetServiceTest {
         assertThatThrownBy(() -> service.retire(999L)).isInstanceOf(NotFoundException.class);
         assertThatThrownBy(() -> service.add(" ", hub)).isInstanceOf(BadRequestException.class);
         verify(scooters, never()).save(any());
+    }
+
+    @Test
+    @Tag("PT-46")
+    void addedScooterIsSentOnlyAfterCommit() {
+        service.add("Standard", hub);
+        verifyNoInteractions(gateway);
+        commit();
+        verify(gateway).registerScooter(7L, hub);
+    }
+
+    @Test
+    @Tag("PT-46")
+    void retiredScooterIsSentOnlyAfterCommit() {
+        stored(ScooterStatus.AVAILABLE);
+        service.retire(7L);
+        verifyNoInteractions(gateway);
+        commit();
+        verify(gateway).retireScooter(7L, hub);
+    }
+
+    @Test
+    @Tag("PT-46")
+    void rejectedAdditionSendsNothing() {
+        occupied(hub, 2);
+        assertThatThrownBy(() -> service.add("Standard", hub)).isInstanceOf(ConflictException.class);
+        commit();
+        verifyNoInteractions(gateway);
+    }
+
+    @Test
+    @Tag("PT-46")
+    void editSendsNothing() {
+        stored(ScooterStatus.AVAILABLE);
+        service.edit(7L, "Cargo", destination);
+        commit();
+        verifyNoInteractions(gateway);
+    }
+
+    @Test
+    @Tag("PT-46")
+    void brokerDownDoesNotFailTheRequest() {
+        doThrow(new IllegalStateException("Broker down")).when(gateway).registerScooter(any(), any());
+        service.add("Standard", hub);
+        assertThatCode(this::commit).doesNotThrowAnyException();
     }
 }
