@@ -19,7 +19,8 @@ import static org.assertj.core.api.Assertions.*;
 @Tag("PT-32")
 abstract class FleetRepositoryContract {
     @Autowired private FleetService service;
-    @Autowired private PostgresFleetRepository repository;
+    @Autowired private ScooterRepository scooters;
+    @Autowired private HubRepository hubs;
     @Autowired private JdbcClient jdbc;
     @Autowired private TransactionTemplate transactions;
     private Long hub;
@@ -35,27 +36,25 @@ abstract class FleetRepositoryContract {
     @Test
     void capacityBoundariesAndRetirementPersist() {
         Scooter first = service.add("Standard", hub);
-        assertThat(repository.hasSpace(hub)).as("Capacity minus one has room").isTrue();
         service.add("Patrol", hub);
-        assertThat(repository.hasSpace(hub)).as("Exactly full has no room").isFalse();
-        assertThatThrownBy(() -> service.add("Standard", hub)).isInstanceOf(ConflictException.class);
-        service.retire(first.id());
-        assertThat(repository.findById(first.id()).orElseThrow().status()).isEqualTo(ScooterStatus.RETIRED);
-        assertThat(repository.hasSpace(hub)).as("Retirement releases capacity").isTrue();
-        service.add("Standard", hub);
+        assertThatThrownBy(() -> service.add("Standard", hub)).as("Exactly full has no room")
+                .isInstanceOf(ConflictException.class);
+        service.retire(first.getId());
+        assertThat(scooters.findById(first.getId()).orElseThrow().getStatus()).isEqualTo(ScooterStatus.RETIRED);
+        assertThat(service.add("Standard", hub)).as("Retirement releases capacity").isNotNull();
         assertThat(jdbc.sql("SELECT count(*) FROM scooters").query(Long.class).single()).isEqualTo(3);
     }
 
     @Test
     void unknownHubIsRejectedAndFailedOperationRollsBack() {
         assertThatThrownBy(() -> service.add("Standard", 999L)).isInstanceOf(NotFoundException.class);
-        Scooter scooter = new Scooter(null, "Standard", hub, ScooterStatus.AVAILABLE);
+        Scooter scooter = new Scooter("Standard", hub);
         assertThatThrownBy(() -> transactions.execute(status -> {
-            repository.lockHubs(hub);
-            repository.save(scooter);
+            hubs.findByIdForUpdate(hub);
+            scooters.save(scooter);
             throw new IllegalStateException("Synthetic failure");
         })).isInstanceOf(IllegalStateException.class);
-        assertThat(repository.findAll()).as("Failed transaction leaves no scooter behind").isEmpty();
+        assertThat(scooters.findAll()).as("Failed transaction leaves no scooter behind").isEmpty();
     }
 
     @Test
@@ -63,11 +62,11 @@ abstract class FleetRepositoryContract {
         Scooter scooter = service.add("Standard", hub);
         Long destination = 2L;
         jdbc.sql("INSERT INTO hubs (id, name, capacity) VALUES (:id, 'Destination', 1)").param("id", destination).update();
-        service.edit(scooter.id(), "Patrol", destination);
-        assertThat(repository.findById(scooter.id()).orElseThrow().hubId()).isEqualTo(destination);
-        jdbc.sql("UPDATE scooters SET status = 'RESERVED' WHERE id = :id").param("id", scooter.id()).update();
-        assertThatThrownBy(() -> service.retire(scooter.id())).isInstanceOf(ConflictException.class);
-        assertThat(repository.findById(scooter.id()).orElseThrow().status()).isEqualTo(ScooterStatus.RESERVED);
+        service.edit(scooter.getId(), "Patrol", destination);
+        assertThat(scooters.findById(scooter.getId()).orElseThrow().getHubId()).isEqualTo(destination);
+        jdbc.sql("UPDATE scooters SET status = 'RESERVED' WHERE id = :id").param("id", scooter.getId()).update();
+        assertThatThrownBy(() -> service.retire(scooter.getId())).isInstanceOf(ConflictException.class);
+        assertThat(scooters.findById(scooter.getId()).orElseThrow().getStatus()).isEqualTo(ScooterStatus.RESERVED);
     }
 
     @Test
@@ -76,19 +75,20 @@ abstract class FleetRepositoryContract {
         jdbc.sql("INSERT INTO hubs (id, name, capacity) VALUES (:id, 'Closed hub', 0)").param("id", destination).update();
         assertThatThrownBy(() -> service.add("Standard", destination)).isInstanceOf(ConflictException.class);
         Scooter scooter = service.add("Standard", hub);
-        assertThatThrownBy(() -> service.edit(scooter.id(), "Patrol", destination))
+        assertThatThrownBy(() -> service.edit(scooter.getId(), "Patrol", destination))
                 .isInstanceOf(ConflictException.class);
-        assertThat(repository.findById(scooter.id()).orElseThrow()).isEqualTo(scooter);
+        assertThat(scooters.findById(scooter.getId()).orElseThrow())
+                .usingRecursiveComparison().isEqualTo(scooter);
     }
 
     @Test
     void listReadsPersistedFleetIncludingRetiredScooters() {
-        assertThat(repository.findAll()).isEmpty();
+        assertThat(scooters.findAll()).isEmpty();
         Scooter active = service.add("Standard", hub);
-        Scooter retired = service.retire(service.add("Patrol", hub).id());
-        assertThat(service.list()).containsExactlyInAnyOrder(active, retired);
-        assertThat(service.get(active.id())).isEqualTo(active);
-        assertThat(service.get(retired.id())).isEqualTo(retired);
+        Scooter retired = service.retire(service.add("Patrol", hub).getId());
+        assertThat(service.list()).usingRecursiveFieldByFieldElementComparator().containsExactly(active, retired);
+        assertThat(service.get(active.getId())).usingRecursiveComparison().isEqualTo(active);
+        assertThat(service.get(retired.getId())).usingRecursiveComparison().isEqualTo(retired);
         assertThatThrownBy(() -> service.get(999L)).isInstanceOf(NotFoundException.class);
     }
 
@@ -120,7 +120,7 @@ abstract class FleetRepositoryContract {
         CountDownLatch release = new CountDownLatch(1);
         try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
             Future<?> holder = executor.submit(() -> transactions.execute(status -> {
-                repository.lockHubs(hub);
+                hubs.findByIdForUpdate(hub);
                 locked.countDown();
                 awaitRelease(release);
                 return null;
@@ -128,7 +128,7 @@ abstract class FleetRepositoryContract {
             try {
                 assertThat(locked.await(10, TimeUnit.SECONDS)).as("First hub is locked").isTrue();
                 Future<Scooter> addition = executor.submit(() -> service.add("Standard", otherHub));
-                assertThat(addition.get(5, TimeUnit.SECONDS).hubId()).isEqualTo(otherHub);
+                assertThat(addition.get(5, TimeUnit.SECONDS).getHubId()).isEqualTo(otherHub);
             } finally {
                 release.countDown();
             }
@@ -158,15 +158,15 @@ abstract class FleetRepositoryContract {
         try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
             Future<Scooter> outward = executor.submit(() -> {
                 awaitRelease(start);
-                return service.edit(first.id(), first.type(), destination);
+                return service.edit(first.getId(), first.getType(), destination);
             });
             Future<Scooter> inward = executor.submit(() -> {
                 awaitRelease(start);
-                return service.edit(second.id(), second.type(), hub);
+                return service.edit(second.getId(), second.getType(), hub);
             });
             start.countDown();
-            assertThat(outward.get(10, TimeUnit.SECONDS).hubId()).isEqualTo(destination);
-            assertThat(inward.get(10, TimeUnit.SECONDS).hubId()).isEqualTo(hub);
+            assertThat(outward.get(10, TimeUnit.SECONDS).getHubId()).isEqualTo(destination);
+            assertThat(inward.get(10, TimeUnit.SECONDS).getHubId()).isEqualTo(hub);
         }
     }
 

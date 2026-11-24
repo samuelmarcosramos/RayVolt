@@ -31,7 +31,7 @@ public class FleetController {
     @PostMapping
     public ResponseEntity<Scooter> add(@RequestBody ScooterRequest request) {
         Scooter scooter = service.add(request.type(), request.hubId());
-        return ResponseEntity.created(URI.create("/api/scooters/" + scooter.id())).body(scooter);
+        return ResponseEntity.created(URI.create("/api/scooters/" + scooter.getId())).body(scooter);
     }
 
     @PutMapping("/{id}")

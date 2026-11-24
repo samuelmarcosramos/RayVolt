@@ -1,64 +1,75 @@
 package com.rayvolt.backend.service;
 
 import com.rayvolt.backend.errors.ConflictException;
+import com.rayvolt.backend.errors.NotFoundException;
+import com.rayvolt.backend.model.Hub;
 import com.rayvolt.backend.model.Scooter;
 import com.rayvolt.backend.model.ScooterStatus;
-import com.rayvolt.backend.repository.FleetRepository;
+import com.rayvolt.backend.repository.HubRepository;
+import com.rayvolt.backend.repository.ScooterRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
-import com.rayvolt.backend.errors.NotFoundException;
-import java.util.Objects;
+import java.util.stream.Stream;
 
 @Service
 public class FleetService {
-    private final FleetRepository repository;
+    private final ScooterRepository scooters;
+    private final HubRepository hubs;
 
-    public FleetService(FleetRepository repository) {
-        this.repository = Objects.requireNonNull(repository);
+    public FleetService(ScooterRepository scooters, HubRepository hubs) {
+        this.scooters = scooters;
+        this.hubs = hubs;
     }
 
     public List<Scooter> list() {
-        return repository.findAll();
+        return scooters.findAllByOrderByIdAsc();
     }
 
     public Scooter get(Long id) {
-        return repository.findById(id).orElseThrow(() -> new NotFoundException("Scooter not found"));
+        return scooters.findById(id).orElseThrow(() -> new NotFoundException("Scooter not found"));
     }
 
     @Transactional
     public Scooter add(String type, Long hubId) {
-        Scooter scooter = new Scooter(null, type, hubId, ScooterStatus.AVAILABLE);
-        repository.lockHubs(hubId);
-        requireSpace(hubId);
-        return repository.save(scooter);
+        Scooter scooter = new Scooter(type, hubId);
+        requireSpace(lockHubs(hubId).getFirst());
+        return scooters.save(scooter);
     }
 
     @Transactional
     public Scooter edit(Long id, String type, Long hubId) {
-        Scooter current = find(id);
-        Scooter updated = current.edit(type, hubId);
-        repository.lockHubs(current.hubId(), hubId);
-        if (!current.hubId().equals(hubId)) {
-            requireSpace(hubId);
+        Scooter scooter = find(id);
+        scooter.requireEditable();
+        List<Hub> locked = lockHubs(scooter.getHubId(), hubId);
+        if (!scooter.getHubId().equals(hubId)) {
+            requireSpace(locked.stream().filter(hub -> hub.getId().equals(hubId)).findFirst().orElseThrow());
         }
-        return repository.save(updated);
+        scooter.edit(type, hubId);
+        return scooters.save(scooter);
     }
 
     @Transactional
     public Scooter retire(Long id) {
-        Scooter current = find(id);
-        Scooter retired = current.retire();
-        repository.lockHubs(current.hubId());
-        return repository.save(retired);
+        Scooter scooter = find(id);
+        scooter.requireEditable();
+        lockHubs(scooter.getHubId());
+        scooter.retire();
+        return scooters.save(scooter);
     }
 
     private Scooter find(Long id) {
-        return repository.findByIdForUpdate(id).orElseThrow(() -> new NotFoundException("Scooter not found"));
+        return scooters.findByIdForUpdate(id).orElseThrow(() -> new NotFoundException("Scooter not found"));
     }
 
-    private void requireSpace(Long hubId) {
-        if (!repository.hasSpace(hubId)) {
+    private List<Hub> lockHubs(Long... hubIds) {
+        return Stream.of(hubIds).distinct().sorted()
+                .map(id -> hubs.findByIdForUpdate(id).orElseThrow(() -> new NotFoundException("Hub not found")))
+                .toList();
+    }
+
+    private void requireSpace(Hub hub) {
+        if (scooters.countByHubIdAndStatusNot(hub.getId(), ScooterStatus.RETIRED) >= hub.getCapacity()) {
             throw new ConflictException("Destination hub is full");
         }
     }
