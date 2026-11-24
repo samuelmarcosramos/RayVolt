@@ -1,7 +1,9 @@
 package com.rayvolt.backend.mqtt;
 
 import com.rayvolt.backend.model.Hub;
+import com.rayvolt.backend.model.TelemetryReading;
 import com.rayvolt.backend.service.ScooterGateway;
+import com.rayvolt.backend.service.TelemetryService;
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,6 +22,7 @@ import org.springframework.integration.mqtt.outbound.MqttPahoMessageHandler;
 import org.springframework.integration.mqtt.support.MqttHeaders;
 import org.springframework.integration.support.MessageBuilder;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.json.JsonMapper;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -36,10 +39,15 @@ public class MqttScooterAdapter implements ScooterGateway, DisposableBean {
     private final MqttPahoMessageHandler publisher;
     private final MqttPahoMessageDrivenChannelAdapter subscriber;
     private final List<Runnable> connectedActions = new CopyOnWriteArrayList<>();
-    private final JsonMapper json = new JsonMapper();
+    private static final JsonMapper JSON = JsonMapper.builder()
+            .enable(DeserializationFeature.FAIL_ON_MISSING_CREATOR_PROPERTIES)
+            .enable(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES)
+            .build();
+    private final TelemetryService telemetry;
 
     public MqttScooterAdapter(@Value("${rayvolt.mqtt.url}") String url, BeanFactory beanFactory,
-            ApplicationEventPublisher events) {
+            ApplicationEventPublisher events, TelemetryService telemetry) {
+        this.telemetry = telemetry;
         MqttConnectOptions options = new MqttConnectOptions();
         options.setServerURIs(new String[]{url});
         options.setAutomaticReconnect(true);
@@ -59,8 +67,8 @@ public class MqttScooterAdapter implements ScooterGateway, DisposableBean {
         publisher.start();
 
         DirectChannel received = new DirectChannel();
-        received.subscribe(message -> LOG.debug("Received on {}: {}",
-                message.getHeaders().get(MqttHeaders.RECEIVED_TOPIC), message.getPayload()));
+        received.subscribe(message -> receive(
+                (String) message.getHeaders().get(MqttHeaders.RECEIVED_TOPIC), (String) message.getPayload()));
         subscriber = new MqttPahoMessageDrivenChannelAdapter(clientId + "-in", factory, TELEMETRY_TOPIC);
         subscriber.setQos(1);
         subscriber.setCompletionTimeout(TIMEOUT_MILLIS);
@@ -89,6 +97,23 @@ public class MqttScooterAdapter implements ScooterGateway, DisposableBean {
         connectedActions.add(action);
     }
 
+    private void receive(String topic, String payload) {
+        try {
+            telemetry.record(parseTelemetry(topic, payload));
+        } catch (RuntimeException exception) {
+            LOG.warn("Ignored telemetry on {}: {}", topic, exception.getMessage());
+        }
+    }
+
+    static TelemetryReading parseTelemetry(String topic, String payload) {
+        TelemetryReading reading = JSON.readValue(payload, TelemetryReading.class);
+        String topicId = topic.split("/")[2];
+        if (!topicId.equals(String.valueOf(reading.scooterId()))) {
+            throw new IllegalArgumentException("scooterId " + reading.scooterId() + " does not match the topic");
+        }
+        return reading;
+    }
+
     @Override
     public void publishHubs(List<Hub> hubs) {
         List<Map<String, Object>> body = hubs.stream().map(hub -> {
@@ -113,7 +138,7 @@ public class MqttScooterAdapter implements ScooterGateway, DisposableBean {
     }
 
     private void publishRetained(String topic, Object body) {
-        publisher.handleMessage(MessageBuilder.withPayload(json.writeValueAsString(body))
+        publisher.handleMessage(MessageBuilder.withPayload(JSON.writeValueAsString(body))
                 .setHeader(MqttHeaders.TOPIC, topic)
                 .setHeader(MqttHeaders.RETAINED, true)
                 .build());

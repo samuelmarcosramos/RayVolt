@@ -6,6 +6,7 @@ import com.github.dockerjava.api.model.Ports;
 import com.rayvolt.backend.service.FleetService;
 import com.rayvolt.backend.service.FleetSyncService;
 import org.eclipse.paho.client.mqttv3.MqttClient;
+import org.eclipse.paho.client.mqttv3.MqttMessage;
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -20,8 +21,11 @@ import org.testcontainers.containers.GenericContainer;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -140,5 +144,66 @@ class MqttScooterAdapterIT {
             after = retainedMessages(500, "rayvolt/fleet/" + created);
         }
         assertThat(after.get("rayvolt/fleet/" + created)).contains("\"hubId\":2", "\"status\":\"RETIRED\"");
+    }
+
+    private void publish(Long scooterId, String payload) throws Exception {
+        MqttClient client = new MqttClient(brokerUrl(), MqttClient.generateClientId(), new MemoryPersistence());
+        client.connect();
+        try {
+            MqttMessage message = new MqttMessage(payload.getBytes(StandardCharsets.UTF_8));
+            message.setQos(1);
+            client.publish("rayvolt/scooters/" + scooterId + "/telemetry", message);
+        } finally {
+            client.disconnect();
+            client.close();
+        }
+    }
+
+    private String telemetry(Long scooterId, Instant timestamp, double lat, String status) {
+        return """
+                {"scooterId": %d, "timestamp": "%s", "battery": 90, "locked": %s, "speedKmh": %s,
+                 "hubId": %s, "lat": %s, "lon": -8.7175, "status": "%s", "fault": false}"""
+                .formatted(scooterId, timestamp, status.equals("AT_HUB"), status.equals("MOVING") ? "15" : "0",
+                        status.equals("AT_HUB") ? "1" : "null", lat, status);
+    }
+
+    private Optional<Map<String, Object>> state(Long scooterId) {
+        return jdbc.sql("SELECT * FROM scooter_state WHERE scooter_id = :id").param("id", scooterId)
+                .query().listOfRows().stream().findFirst();
+    }
+
+    private Map<String, Object> waitForState(Long scooterId, String expectedStatus) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + 5_000;
+        while (System.currentTimeMillis() < deadline) {
+            Optional<Map<String, Object>> row = state(scooterId);
+            if (row.isPresent() && expectedStatus.equals(row.get().get("POSITION_STATUS"))) {
+                return row.get();
+            }
+            Thread.sleep(50);
+        }
+        throw new AssertionError("Scooter " + scooterId + " did not reach " + expectedStatus + " within 5 s");
+    }
+
+    @Test
+    void telemetryIsSavedWithinFiveSecondsAndTheRideIsCounted() throws Exception {
+        Long scooter = insertScooter("Standard", 1, "IN_USE");
+        Instant start = Instant.parse("2026-11-24T10:00:00Z");
+        publish(scooter, telemetry(scooter, start, 40.612, "MOVING"));
+        publish(scooter, telemetry(scooter, start.plusSeconds(5), 40.613, "MOVING"));
+        Instant sent = Instant.now();
+        publish(scooter, telemetry(scooter, start.plusSeconds(10), 40.614, "AT_HUB"));
+        Map<String, Object> row = waitForState(scooter, "AT_HUB");
+        assertThat(Duration.between(sent, Instant.now())).as("Saved within 5 s").isLessThan(Duration.ofSeconds(5));
+        assertThat((Double) row.get("ODOMETER_KM")).as("Both stretches, including the one into the hub")
+                .isCloseTo(0.2224, org.assertj.core.data.Offset.offset(0.001));
+        assertThat(row.get("RECEIVED_AT")).isNotNull();
+    }
+
+    @Test
+    void invalidTelemetryIsIgnoredAndTheNextReadingStillArrives() throws Exception {
+        Long scooter = insertScooter("Standard", 1, "AVAILABLE");
+        publish(scooter, "not json");
+        publish(scooter, telemetry(scooter, Instant.parse("2026-11-24T10:00:00Z"), 40.612, "AT_HUB"));
+        assertThat(waitForState(scooter, "AT_HUB").get("BATTERY")).isEqualTo(90);
     }
 }
