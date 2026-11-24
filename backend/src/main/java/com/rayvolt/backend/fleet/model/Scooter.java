@@ -1,7 +1,7 @@
 package com.rayvolt.backend.fleet.model;
 
-import com.rayvolt.backend.common.exception.BadRequestException;
-import com.rayvolt.backend.common.exception.ConflictException;
+import com.rayvolt.backend.errors.BadRequestException;
+import com.rayvolt.backend.errors.ConflictException;
 import java.util.Objects;
 
 public record Scooter(Long id, String type, Long hubId, ScooterStatus status) {

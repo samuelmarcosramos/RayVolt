@@ -1,6 +1,6 @@
 package com.rayvolt.backend.fleet.controller;
 
-import com.rayvolt.backend.common.exception.BadRequestException;
+import com.rayvolt.backend.errors.BadRequestException;
 import com.rayvolt.backend.fleet.model.Scooter;
 import com.rayvolt.backend.fleet.service.FleetService;
 import org.springframework.http.ResponseEntity;

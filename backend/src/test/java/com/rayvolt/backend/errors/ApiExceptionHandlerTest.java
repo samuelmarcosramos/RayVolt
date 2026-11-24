@@ -1,8 +1,5 @@
-package com.rayvolt.backend.common.web;
+package com.rayvolt.backend.errors;
 
-import com.rayvolt.backend.common.exception.BadRequestException;
-import com.rayvolt.backend.common.exception.ConflictException;
-import com.rayvolt.backend.common.exception.NotFoundException;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;

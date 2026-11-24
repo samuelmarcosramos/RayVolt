@@ -1,13 +1,13 @@
 package com.rayvolt.backend.fleet.service;
 
-import com.rayvolt.backend.common.exception.ConflictException;
+import com.rayvolt.backend.errors.ConflictException;
 import com.rayvolt.backend.fleet.model.Scooter;
 import com.rayvolt.backend.fleet.model.ScooterStatus;
 import com.rayvolt.backend.fleet.repository.FleetRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
-import com.rayvolt.backend.common.exception.NotFoundException;
+import com.rayvolt.backend.errors.NotFoundException;
 import java.util.Objects;
 
 @Service

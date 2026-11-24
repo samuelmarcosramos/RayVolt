@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import java.util.*;
-import com.rayvolt.backend.common.exception.*;
+import com.rayvolt.backend.errors.*;
 import static org.assertj.core.api.Assertions.*;
 
 @Tag("PT-32")

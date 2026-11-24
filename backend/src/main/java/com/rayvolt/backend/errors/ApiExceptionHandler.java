@@ -1,8 +1,5 @@
-package com.rayvolt.backend.common.web;
+package com.rayvolt.backend.errors;
 
-import com.rayvolt.backend.common.exception.BadRequestException;
-import com.rayvolt.backend.common.exception.ConflictException;
-import com.rayvolt.backend.common.exception.NotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.TypeMismatchException;

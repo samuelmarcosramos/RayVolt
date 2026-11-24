@@ -8,7 +8,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Arrays;
-import com.rayvolt.backend.common.exception.NotFoundException;
+import com.rayvolt.backend.errors.NotFoundException;
 import java.util.Optional;
 import java.util.Objects;
 import org.springframework.jdbc.support.GeneratedKeyHolder;

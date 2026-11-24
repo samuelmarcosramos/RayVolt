@@ -11,7 +11,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.transaction.support.TransactionTemplate;
 import java.util.*;
-import com.rayvolt.backend.common.exception.*;
+import com.rayvolt.backend.errors.*;
 import java.util.concurrent.*;
 import static org.assertj.core.api.Assertions.*;
 
