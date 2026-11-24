@@ -205,15 +205,19 @@ class RateMeter:
         self.start = clock()
         self.sent = 0
         self.acked = 0
+        self.pending = set()
         self._lock = threading.Lock()
 
-    def add_sent(self, readings):
+    def add_sent(self, mid):
         with self._lock:
-            self.sent += readings
+            self.sent += 1
+            self.pending.add(mid)
 
-    def add_acked(self):
+    def add_acked(self, mid):
         with self._lock:
-            self.acked += 1
+            if mid in self.pending:
+                self.pending.remove(mid)
+                self.acked += 1
 
     def report(self, target):
         with self._lock:
@@ -244,7 +248,7 @@ def on_message(client, fleet, msg):
 
 def connect(fleet, meter):
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
-    client.on_publish = lambda *_: meter.add_acked()
+    client.on_publish = lambda c, u, mid, *_: meter.add_acked(mid)
     client.on_connect = lambda c, *_: c.subscribe(HUBS_TOPIC, qos=1)
     client.on_message = lambda c, u, msg: on_message(c, fleet, msg)
     while True:
@@ -271,9 +275,8 @@ def main():
         readings = fleet.tick(PUBLISH_INTERVAL, now)
         for topic, telemetry in readings:
             message = json.dumps(telemetry)
-            client.publish(topic, message, qos=1)
+            meter.add_sent(client.publish(topic, message, qos=1).mid)
             print(f"Sent {message}")
-        meter.add_sent(len(readings))
         next_tick += PUBLISH_INTERVAL
         time.sleep(max(0, next_tick - time.monotonic()))
 

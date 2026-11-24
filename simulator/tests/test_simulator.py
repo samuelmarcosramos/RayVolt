@@ -409,9 +409,10 @@ class FakeClock:
 
 def meter_with(clock, sent, acked):
     meter = RateMeter(clock=clock)
-    meter.add_sent(sent)
-    for _ in range(acked):
-        meter.add_acked()
+    for mid in range(sent):
+        meter.add_sent(mid)
+    for mid in range(acked):
+        meter.add_acked(mid)
     return meter
 
 
@@ -453,8 +454,18 @@ def test_rate_starts_again_after_a_report():
     clock.now = 10
     meter.report(1000)
 
-    meter.add_sent(500)
-    for _ in range(500):
-        meter.add_acked()
+    for mid in range(500):
+        meter.add_sent(mid)
+        meter.add_acked(mid)
     clock.now = 20
     assert meter.report(50) == "Rate: 50 readings/s (target 50): 500 sent, 500 acknowledged in 10 s"
+
+
+def test_acks_of_responses_and_events_are_not_counted():
+    clock = FakeClock()
+    meter = meter_with(clock, 10000, 10000)
+    for mid in range(10000, 10050):
+        meter.add_acked(mid)
+
+    clock.now = 10
+    assert meter.report(1000) == "Rate: 1000 readings/s (target 1000): 10000 sent, 10000 acknowledged in 10 s"
