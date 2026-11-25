@@ -100,15 +100,15 @@ function FleetPage() {
               <dt>Scooters</dt>
               <dd>{summary.total}</dd>
             </div>
-            <div className="summary-card">
+            <div className="summary-card summary-card--available">
               <dt>Available</dt>
               <dd>{summary.available}</dd>
             </div>
-            <div className="summary-card">
+            <div className="summary-card summary-card--in-use">
               <dt>In use</dt>
               <dd>{summary.inUse}</dd>
             </div>
-            <div className="summary-card">
+            <div className="summary-card summary-card--maintenance">
               <dt>Maintenance</dt>
               <dd>
                 {summary.maintenance}

@@ -1,13 +1,10 @@
-import { Link, NavLink } from 'react-router-dom'
-import logo from '../assets/logo.svg'
+import { NavLink } from 'react-router-dom'
+import Brand from './Brand'
 
 function Navbar() {
   return (
     <header className="navbar">
-      <Link className="brand" to="/" aria-label="RayVolt home">
-        <img className="brand-logo" src={logo} alt="" />
-        RayVolt
-      </Link>
+      <Brand />
       <nav aria-label="Main">
         <ul className="nav-links">
           <li>

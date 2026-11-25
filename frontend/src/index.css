@@ -3,16 +3,21 @@
   --thistle: #d3c7d4;
   --dusty-grape: #584e95;
   --dusty-grape-dark: #463e7a;
-  --text: #2b2640;
-  --text-muted: #5c566e;
-  --surface: #f4f0f4;
+  --grape-bright: #7b6fd6;
+  --text: #1e1933;
+  --text-muted: #4b4562;
+  --surface: #faf8fa;
   --ok: #3f8f5f;
   --warn: #b7791f;
   --danger: #b3261e;
 
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: "Plus Jakarta Sans Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   color: var(--text);
-  background: var(--lavender-mist);
+  background:
+    radial-gradient(60rem 30rem at 100% -10%, rgb(123 111 214 / 22%), transparent 70%),
+    radial-gradient(40rem 25rem at -10% 110%, rgb(211 199 212 / 90%), transparent 70%),
+    var(--lavender-mist);
+  background-attachment: fixed;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
