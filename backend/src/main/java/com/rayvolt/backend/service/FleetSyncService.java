@@ -6,12 +6,10 @@ import com.rayvolt.backend.repository.HubRepository;
 import com.rayvolt.backend.repository.ScooterRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 @Service
-@ConditionalOnProperty(name = "rayvolt.mqtt.enabled", havingValue = "true")
 public class FleetSyncService {
     private static final Logger LOG = LoggerFactory.getLogger(FleetSyncService.class);
     private final ScooterRepository scooters;
