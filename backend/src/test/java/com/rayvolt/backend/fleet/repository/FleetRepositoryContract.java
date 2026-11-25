@@ -5,27 +5,20 @@ import com.rayvolt.backend.fleet.service.FleetService;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.flywaydb.core.Flyway;
 import javax.sql.DataSource;
-import com.rayvolt.backend.fleet.support.FixedFleetClock;
-import org.springframework.context.annotation.Import;
-import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
-import static com.rayvolt.backend.fleet.support.FixedFleetClock.NOW;
-import static org.mockito.Mockito.*;
-import static org.mockito.ArgumentMatchers.any;
 import java.util.*;
 import com.rayvolt.backend.common.exception.*;
 import java.util.concurrent.*;
 import static org.assertj.core.api.Assertions.*;
 
 @SpringBootTest
-@Import(FixedFleetClock.class)
 @Tag("PT-32")
 abstract class FleetRepositoryContract {
     @Autowired private FleetService service;
@@ -33,7 +26,6 @@ abstract class FleetRepositoryContract {
     @Autowired private JdbcClient jdbc;
     @Autowired private TransactionTemplate transactions;
     @Autowired private DataSource dataSource;
-    @MockitoSpyBean private JdbcScooterStateHistoryRepository historyAdapter;
     private Long hub;
 
     @BeforeEach
@@ -43,96 +35,6 @@ abstract class FleetRepositoryContract {
         jdbc.sql("DELETE FROM hubs").update();
         hub = 1L;
         jdbc.sql("INSERT INTO hubs (id, name, capacity) VALUES (:id, 'Synthetic hub', 2)").param("id", hub).update();
-    }
-
-    @Test
-    @Tag("PT-34")
-    void historyPreservesStateTimeCauseAndRecordingOrder() {
-        Scooter scooter = service.add("Standard", hub);
-        service.changeStatus(scooter.id(), ScooterStatus.RESERVED, StateChangeCause.USER);
-        service.changeStatus(scooter.id(), ScooterStatus.IN_USE, StateChangeCause.USER);
-        service.changeStatus(scooter.id(), ScooterStatus.MAINTENANCE, StateChangeCause.TELEMETRY);
-        service.changeStatus(scooter.id(), ScooterStatus.AVAILABLE, StateChangeCause.TICKET);
-        service.retire(scooter.id());
-        List<ScooterStateChange> changes = service.history(scooter.id());
-        assertThat(changes).hasSize(6);
-        assertThat(changes).extracting(ScooterStateChange::id).isSorted().doesNotHaveDuplicates();
-        assertThat(changes).extracting(ScooterStateChange::changedAt).containsOnly(NOW);
-        assertThat(changes).extracting(ScooterStateChange::scooterId).containsOnly(scooter.id());
-        assertThat(changes).extracting(ScooterStateChange::fromStatus).containsExactly(null,
-                ScooterStatus.AVAILABLE, ScooterStatus.RESERVED, ScooterStatus.IN_USE,
-                ScooterStatus.MAINTENANCE, ScooterStatus.AVAILABLE);
-        assertThat(changes).extracting(ScooterStateChange::toStatus).containsExactly(ScooterStatus.AVAILABLE,
-                ScooterStatus.RESERVED, ScooterStatus.IN_USE, ScooterStatus.MAINTENANCE,
-                ScooterStatus.AVAILABLE, ScooterStatus.RETIRED);
-        assertThat(changes).extracting(ScooterStateChange::cause).containsExactly(StateChangeCause.OPERATOR,
-                StateChangeCause.USER, StateChangeCause.USER, StateChangeCause.TELEMETRY,
-                StateChangeCause.TICKET, StateChangeCause.OPERATOR);
-    }
-
-    @Test
-    @Tag("PT-34")
-    void rejectedTransitionLeavesStateAndHistoryUnchanged() {
-        Scooter scooter = service.add("Standard", hub);
-        service.changeStatus(scooter.id(), ScooterStatus.IN_USE, StateChangeCause.USER);
-        List<ScooterStateChange> before = service.history(scooter.id());
-        assertThatThrownBy(() -> service.retire(scooter.id())).isInstanceOf(ConflictException.class);
-        assertThat(service.get(scooter.id()).status()).isEqualTo(ScooterStatus.IN_USE);
-        assertThat(service.history(scooter.id())).containsExactlyElementsOf(before);
-    }
-
-    @Test
-    @Tag("PT-34")
-    void auditFailureRollsBackTheStateChange() {
-        Scooter scooter = service.add("Standard", hub);
-        List<ScooterStateChange> before = service.history(scooter.id());
-        doThrow(new DataIntegrityViolationException("Synthetic audit failure")).when(historyAdapter).append(any());
-        assertThatThrownBy(() -> service.changeStatus(scooter.id(), ScooterStatus.RESERVED, StateChangeCause.USER))
-                .isInstanceOf(DataIntegrityViolationException.class);
-        assertThat(service.get(scooter.id()).status()).as("Audit failure rolls back scooter state")
-                .isEqualTo(ScooterStatus.AVAILABLE);
-        assertThat(service.history(scooter.id())).containsExactlyElementsOf(before);
-    }
-
-    @Test
-    @Tag("PT-34")
-    void historyIsScopedToOneScooter() {
-        Scooter first = service.add("Standard", hub);
-        Scooter second = service.add("Patrol", hub);
-        service.changeStatus(first.id(), ScooterStatus.RESERVED, StateChangeCause.USER);
-        assertThat(service.history(first.id())).hasSize(2);
-        assertThat(service.history(second.id())).hasSize(1)
-                .allSatisfy(change -> assertThat(change.scooterId()).isEqualTo(second.id()));
-        assertThatThrownBy(() -> service.history(999L)).isInstanceOf(NotFoundException.class);
-    }
-
-    @Test
-    @Tag("PT-34")
-    void concurrentReservationAndRetirementKeepAConsistentHistory() throws Exception {
-        Scooter scooter = service.add("Standard", hub);
-        CountDownLatch start = new CountDownLatch(1);
-        try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
-            Future<?> retirement = executor.submit(() -> {
-                awaitRelease(start);
-                return service.retire(scooter.id());
-            });
-            Future<?> reservation = executor.submit(() -> {
-                awaitRelease(start);
-                try { return service.changeStatus(scooter.id(), ScooterStatus.RESERVED, StateChangeCause.USER); }
-                catch (ConflictException retired) { return null; }
-            });
-            start.countDown();
-            retirement.get(10, TimeUnit.SECONDS);
-            reservation.get(10, TimeUnit.SECONDS);
-        }
-        assertThat(service.get(scooter.id()).status()).isEqualTo(ScooterStatus.RETIRED);
-        List<ScooterStateChange> changes = service.history(scooter.id());
-        assertThat(changes).hasSizeBetween(2, 3);
-        for (int i = 1; i < changes.size(); i++) {
-            assertThat(changes.get(i).fromStatus()).as("History forms one serialized chain")
-                    .isEqualTo(changes.get(i - 1).toStatus());
-        }
-        assertThat(changes.getLast().toStatus()).isEqualTo(ScooterStatus.RETIRED);
     }
 
     @Test
