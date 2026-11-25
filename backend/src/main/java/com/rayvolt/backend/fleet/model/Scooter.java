@@ -22,8 +22,17 @@ public record Scooter(Long id, String type, Long hubId, ScooterStatus status) {
     }
 
     public Scooter retire() {
-        requireEditable();
-        return new Scooter(id, type, hubId, ScooterStatus.RETIRED);
+        return changeStatus(ScooterStatus.RETIRED);
+    }
+
+    public Scooter changeStatus(ScooterStatus target) {
+        if (target == null) {
+            throw new BadRequestException("Target state is required");
+        }
+        if (!status.canTransitionTo(target)) {
+            throw new ConflictException("Cannot change scooter state from " + status + " to " + target);
+        }
+        return new Scooter(id, type, hubId, target);
     }
 
     public boolean visibleToUsers() {
