@@ -77,6 +77,7 @@ A story is done only when all of these are true:
 - Before implementing a change, read the related Jira story, its acceptance criteria and the existing code.
 - Keep backend code organized by domain module, with `controller`, `service`, `model` and `repository` inside each module. Shared configuration and error handling stay outside domain modules.
 - Fleet lifecycle rules are specified by PT-34 and `backend/src/test/resources/features/fleet/scooter_lifecycle.feature`. Persisted state changes go through `fleet.service.FleetService.changeStatus`, so the state and its timestamped cause are saved atomically. Other modules must call this service instead of writing scooter status directly.
+- TODO when Bookings & Trips, Maintenance and Telemetry are integrated: connect reservation/cancellation/expiry, trip, ticket and telemetry events to this Fleet lifecycle service with the corresponding cause. Operator authorization remains a Users dependency.
 - Follow the existing architecture and module responsibilities. Do not change architectural boundaries without justification
   (e.g. the backend talks to the simulator only through the MQTT broker, and only the MQTT adapter knows MQTT).
 - Do not add dependencies with known security vulnerabilities, and respect the dependency security checks in CI.
