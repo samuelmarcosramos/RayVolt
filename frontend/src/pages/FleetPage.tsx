@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import FleetIntro from '../components/FleetIntro'
 import {
-  batteryLevel,
+  batteryColor,
   STATUS_LABELS,
   type ScooterLive,
   type ScooterStatus,
@@ -22,6 +23,9 @@ function FleetPage() {
   const [connection, setConnection] = useState<Connection>('connecting')
   const [now, setNow] = useState(() => Date.now())
   const [filter, setFilter] = useState<Filter>('ALL')
+  const [intro, setIntro] = useState(true)
+  const titleRef = useRef<HTMLHeadingElement>(null)
+  const endIntro = useCallback(() => setIntro(false), [])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -73,15 +77,22 @@ function FleetPage() {
   const shown = filter === 'ALL' ? scooters : scooters.filter((scooter) => scooter.status === filter)
 
   return (
-    <section aria-labelledby="fleet-title">
+    <section aria-labelledby="fleet-title" className={intro ? 'fleet fleet--intro' : 'fleet fleet--entered'}>
       <div className="page-header">
-        <h1 id="fleet-title">Fleet</h1>
+        <h1 id="fleet-title" ref={titleRef}>
+          <span className="fleet-letter">F</span>
+          <span className="fleet-letter">l</span>
+          <span className="fleet-e">e</span>
+          <span className="fleet-e">e</span>
+          <span className="fleet-letter">t</span>
+        </h1>
         {!loadError && (
           <span className={`live live--${connection}`} role="status">
             {connection === 'reconnecting' ? 'Reconnecting…' : connection === 'live' ? 'Live' : 'Connecting…'}
           </span>
         )}
       </div>
+      {intro && <FleetIntro title={titleRef} onDone={endIntro} />}
 
       {loadError && (
         <p className="error-message" role="alert">
@@ -161,8 +172,8 @@ function FleetPage() {
                       '—'
                     ) : (
                       <span className="battery">
-                        <span className={`battery-bar battery-bar--${batteryLevel(scooter.battery)}`} aria-hidden="true">
-                          <span style={{ width: `${scooter.battery}%` }} />
+                        <span className="battery-bar" aria-hidden="true">
+                          <span style={{ width: `${scooter.battery}%`, background: batteryColor(scooter.battery) }} />
                         </span>
                         {scooter.battery}%
                       </span>

@@ -23,7 +23,7 @@ export const STATUS_LABELS: Record<ScooterStatus, string> = {
 
 export const POSITION_LABELS: Record<PositionStatus, string> = {
   AT_HUB: 'At hub',
-  MOVING: 'Moving',
+  MOVING: 'On the move',
   OUTSIDE_HUB: 'Outside hub',
 }
 
@@ -77,9 +77,10 @@ export function summarize(scooters: ScooterLive[]): FleetSummary {
   }
 }
 
-export function batteryLevel(battery: number): 'low' | 'medium' | 'high' {
-  if (battery < 20) {
-    return 'low'
+export function batteryColor(battery: number): string {
+  const level = Math.min(100, Math.max(0, battery))
+  if (level >= 50) {
+    return `color-mix(in oklch, var(--green) ${(level - 50) * 2}%, var(--orange))`
   }
-  return battery < 50 ? 'medium' : 'high'
+  return `color-mix(in oklch, var(--orange) ${level * 2}%, var(--danger))`
 }
