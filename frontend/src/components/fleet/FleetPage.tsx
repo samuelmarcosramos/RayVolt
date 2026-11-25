@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import FleetIntro from '../components/FleetIntro'
+import { getScooterStates, subscribeToScooters } from '../../api/scooterService'
+import StatCard from '../reusable/StatCard'
+import FleetIntro from './FleetIntro'
 import {
   batteryColor,
   STATUS_LABELS,
@@ -9,7 +11,8 @@ import {
   timeAgo,
   upsert,
   where,
-} from '../fleet'
+} from '../../utils/fleet'
+import './Fleet.css'
 
 type Connection = 'connecting' | 'live' | 'reconnecting'
 
@@ -29,24 +32,16 @@ function FleetPage() {
 
   useEffect(() => {
     const controller = new AbortController()
-    let stream: EventSource | null = null
+    let unsubscribe: (() => void) | null = null
 
-    fetch('/api/scooters/state', { signal: controller.signal })
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`)
-        }
-        return response.json() as Promise<ScooterLive[]>
-      })
+    getScooterStates(controller.signal)
       .then((initial) => {
         setScooters([...initial].sort((a, b) => a.scooterId - b.scooterId))
-        stream = new EventSource('/api/scooters/stream')
-        stream.onopen = () => setConnection('live')
-        stream.onerror = () => setConnection('reconnecting')
-        stream.onmessage = (event: MessageEvent<string>) => {
-          const update = JSON.parse(event.data) as ScooterLive
-          setScooters((current) => upsert(current, update))
-        }
+        unsubscribe = subscribeToScooters({
+          onUpdate: (update) => setScooters((current) => upsert(current, update)),
+          onOpen: () => setConnection('live'),
+          onError: () => setConnection('reconnecting'),
+        })
       })
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === 'AbortError') {
@@ -57,7 +52,7 @@ function FleetPage() {
 
     return () => {
       controller.abort()
-      stream?.close()
+      unsubscribe?.()
     }
   }, [])
 
@@ -105,29 +100,15 @@ function FleetPage() {
       {scooters.length > 0 && (
         <>
           <dl className="summary">
-            <div className="summary-card">
-              <dt>Scooters</dt>
-              <dd>{summary.total}</dd>
-            </div>
-            <div className="summary-card summary-card--available">
-              <dt>Available</dt>
-              <dd>{summary.available}</dd>
-            </div>
-            <div className="summary-card">
-              <dt>In use</dt>
-              <dd>{summary.inUse}</dd>
-            </div>
-            <div className="summary-card summary-card--maintenance">
-              <dt>Maintenance</dt>
-              <dd>
-                {summary.maintenance}
-                {summary.faults > 0 && (
-                  <span className="summary-note">
-                    {summary.faults} {summary.faults === 1 ? 'fault' : 'faults'}
-                  </span>
-                )}
-              </dd>
-            </div>
+            <StatCard label="Scooters" value={summary.total} />
+            <StatCard label="Available" value={summary.available} hover="green" />
+            <StatCard label="In use" value={summary.inUse} />
+            <StatCard
+              label="Maintenance"
+              value={summary.maintenance}
+              hover="orange"
+              note={summary.faults > 0 && `${summary.faults} ${summary.faults === 1 ? 'fault' : 'faults'}`}
+            />
           </dl>
 
           <div className="filters" role="group" aria-label="Filter by status">

@@ -1,5 +1,5 @@
 import { type RefObject, useLayoutEffect, useRef } from 'react'
-import Logo from './Logo'
+import Logo from '../reusable/Logo'
 
 type FleetIntroProps = {
   title: RefObject<HTMLHeadingElement | null>
