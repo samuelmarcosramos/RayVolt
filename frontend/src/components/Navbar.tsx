@@ -1,9 +1,11 @@
 import { Link, NavLink } from 'react-router-dom'
+import logo from '../assets/logo.svg'
 
 function Navbar() {
   return (
     <header className="navbar">
       <Link className="brand" to="/" aria-label="RayVolt home">
+        <img className="brand-logo" src={logo} alt="" />
         RayVolt
       </Link>
       <nav aria-label="Main">
