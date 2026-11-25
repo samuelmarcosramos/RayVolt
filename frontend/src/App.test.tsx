@@ -1,11 +1,18 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
+import { FakeEventSource } from './test/fakeEventSource'
+
+beforeEach(() => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => [] }))
+  vi.stubGlobal('EventSource', FakeEventSource)
+})
 
 afterEach(() => {
   cleanup()
+  vi.unstubAllGlobals()
 })
 
 function renderAt(path: string) {
