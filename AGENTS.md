@@ -21,7 +21,7 @@ Backlog: Jira project `PT`. Every change belongs to a Jira item `PT-<n>`.
 ## 2. Build and test commands
 
 ```
-backend/    ./mvnw test        # unit + slice tests, fast, no Docker
+backend/    ./mvnw test        # unit + slice + Cucumber tests, fast, no Docker
             ./mvnw verify      # + integration tests (*IT: Testcontainers, Playwright) + JaCoCo report
 frontend/   npm ci && npm test && npm run build
 simulator/  pip install -r requirements-dev.txt && pytest
@@ -75,6 +75,8 @@ A story is done only when all of these are true:
 ## 7. Rules for AI agents
 
 - Before implementing a change, read the related Jira story, its acceptance criteria and the existing code.
+- Keep backend code organized by domain module, with `controller`, `service`, `model` and `repository` inside each module. Shared configuration and error handling stay outside domain modules.
+- Fleet lifecycle rules are specified by PT-34 and `backend/src/test/resources/features/fleet/scooter_lifecycle.feature`. Persisted state changes go through `fleet.service.FleetService.changeStatus`, so the state and its timestamped cause are saved atomically. Other modules must call this service instead of writing scooter status directly.
 - Follow the existing architecture and module responsibilities. Do not change architectural boundaries without justification
   (e.g. the backend talks to the simulator only through the MQTT broker, and only the MQTT adapter knows MQTT).
 - Do not add dependencies with known security vulnerabilities, and respect the dependency security checks in CI.
