@@ -72,6 +72,11 @@ public class SseService {
         emitter.onCompletion(() -> listeners.remove(emitter));
         emitter.onTimeout(() -> listeners.remove(emitter));
         emitter.onError(error -> listeners.remove(emitter));
+        try {
+            emitter.send(SseEmitter.event().comment("connected"));
+        } catch (IOException exception) {
+            listeners.remove(emitter);
+        }
         return emitter;
     }
 
