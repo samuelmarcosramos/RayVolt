@@ -21,7 +21,7 @@ public class ScooterLifecycleController {
     }
 
     @PatchMapping("/state")
-    @Operation(summary = "Change scooter state", description = "Applies the PT-34 lifecycle and records the cause. Invalid transitions return 409.")
+    @Operation(summary = "Change scooter state", description = "Applies the PT-34 lifecycle and records the cause. Reserved and in-use scooters cannot be retired. Invalid transitions return 409.")
     public Scooter changeStatus(@PathVariable Long id, @RequestBody StateChangeRequest request) {
         return service.changeStatus(id, request.status(), request.cause());
     }
