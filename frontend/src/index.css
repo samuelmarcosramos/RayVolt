@@ -1,27 +1,50 @@
 :root {
-  --lavender-mist: #e3dce3;
-  --thistle: #d3c7d4;
-  --dusty-grape: #584e95;
-  --dusty-grape-dark: #463e7a;
-  --grape-bright: #7b6fd6;
-  --text: #1e1933;
-  --text-muted: #4b4562;
-  --surface: #faf8fa;
-  --ok: #3f8f5f;
-  --warn: #b7791f;
-  --danger: #b3261e;
+  --bg: #121018;
+  --surface: #1c1824;
+  --border: #2f2939;
+  --text: #f3eef7;
+  --text-muted: #a49cb2;
+  --primary: #d986eb;
+  --primary-strong: #c56ed9;
+  --primary-light: #ecb6f6;
+  --on-primary: #1a1220;
+  --ok: #d986eb;
+  --warn: #8e6a99;
+  --danger: #ff6b6b;
+  --green: #5fd39a;
+  --orange: #ff8a5c;
+
+  color-scheme: dark;
 
   font-family: "Plus Jakarta Sans Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   color: var(--text);
   background:
-    radial-gradient(60rem 30rem at 100% -10%, rgb(123 111 214 / 22%), transparent 70%),
-    radial-gradient(40rem 25rem at -10% 110%, rgb(211 199 212 / 90%), transparent 70%),
-    var(--lavender-mist);
+    radial-gradient(60rem 30rem at 100% -10%, rgb(217 134 235 / 10%), transparent 70%),
+    var(--bg);
   background-attachment: fixed;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+:root[data-theme='light'] {
+  --bg: #f7f3f9;
+  --surface: #ffffff;
+  --border: #e5dbec;
+  --text: #1e1626;
+  --text-muted: #6b6077;
+  --primary: #b45ac8;
+  --primary-strong: #9c46b0;
+  --primary-light: #d986eb;
+  --on-primary: #ffffff;
+  --ok: #b45ac8;
+  --warn: #b48cbf;
+  --danger: #d93a3a;
+  --green: #1f9d5c;
+  --orange: #e0552b;
+
+  color-scheme: light;
 }
 
 * {

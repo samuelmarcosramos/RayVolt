@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import Brand from './Brand'
+import ThemeToggle from './ThemeToggle'
 
 function Navbar() {
   return (
@@ -17,6 +18,7 @@ function Navbar() {
           </li>
         </ul>
       </nav>
+      <ThemeToggle />
     </header>
   )
 }

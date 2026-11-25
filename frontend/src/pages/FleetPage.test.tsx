@@ -39,7 +39,8 @@ describe('Fleet dashboard', () => {
     expect(cells.getByText('Available')).toBeInTheDocument()
     expect(cells.getByText('96%')).toBeInTheDocument()
     expect(cells.getByText('40.6100, -8.7135')).toBeInTheDocument()
-    expect(cells.getByText('At Security Post')).toBeInTheDocument()
+    expect(cells.getByText('Security Post', { selector: 'strong' })).toBeInTheDocument()
+    expect(first.closest('tr')).toHaveTextContent('At Security Post')
     expect(within(row('#2')).getAllByText('—')).toHaveLength(4)
   })
 

@@ -22,7 +22,6 @@ function FleetPage() {
   const [connection, setConnection] = useState<Connection>('connecting')
   const [now, setNow] = useState(() => Date.now())
   const [filter, setFilter] = useState<Filter>('ALL')
-  const [versions, setVersions] = useState<Record<number, number>>({})
 
   useEffect(() => {
     const controller = new AbortController()
@@ -43,7 +42,6 @@ function FleetPage() {
         stream.onmessage = (event: MessageEvent<string>) => {
           const update = JSON.parse(event.data) as ScooterLive
           setScooters((current) => upsert(current, update))
-          setVersions((current) => ({ ...current, [update.scooterId]: (current[update.scooterId] ?? 0) + 1 }))
         }
       })
       .catch((error: unknown) => {
@@ -104,7 +102,7 @@ function FleetPage() {
               <dt>Available</dt>
               <dd>{summary.available}</dd>
             </div>
-            <div className="summary-card summary-card--in-use">
+            <div className="summary-card">
               <dt>In use</dt>
               <dd>{summary.inUse}</dd>
             </div>
@@ -150,10 +148,7 @@ function FleetPage() {
             </thead>
             <tbody>
               {shown.map((scooter) => (
-                <tr
-                  key={`${scooter.scooterId}-${versions[scooter.scooterId] ?? 0}`}
-                  className={versions[scooter.scooterId] ? 'flash' : undefined}
-                >
+                <tr key={scooter.scooterId}>
                   <th scope="row">#{scooter.scooterId}</th>
                   <td>
                     <span className={`status status--${scooter.status.toLowerCase()}`}>
@@ -173,7 +168,15 @@ function FleetPage() {
                       </span>
                     )}
                   </td>
-                  <td>{where(scooter)}</td>
+                  <td>
+                    {scooter.positionStatus === 'AT_HUB' && scooter.hubName !== null ? (
+                      <>
+                        At <strong className="hub-name">{scooter.hubName}</strong>
+                      </>
+                    ) : (
+                      where(scooter)
+                    )}
+                  </td>
                   <td className="muted">
                     {scooter.lat === null || scooter.lon === null
                       ? '—'
