@@ -5,6 +5,7 @@ import com.rayvolt.backend.fleet.model.*;
 import com.rayvolt.backend.fleet.repository.FleetRepository;
 import com.rayvolt.backend.fleet.repository.ScooterStateHistoryRepository;
 import com.rayvolt.backend.fleet.service.FleetService;
+import io.cucumber.datatable.DataTable;
 import io.cucumber.java.en.Given;
 import io.cucumber.java.en.When;
 import io.cucumber.java.en.Then;
@@ -24,14 +25,14 @@ public class ScooterLifecycleSteps {
     private final ScooterStateHistoryRepository history = mock(ScooterStateHistoryRepository.class);
     private final FleetService service = new FleetService(repository, history, Clock.fixed(NOW, ZoneOffset.UTC));
     private final List<ScooterStateChange> recorded = new ArrayList<>();
+    private final List<ScooterStateChange> expectedHistory = new ArrayList<>();
     private Scooter scooter;
-    private ScooterStatus initial;
-    private Throwable rejected;
 
     @Given("a scooter in state {word}")
     public void initialState(String state) {
-        initial = ScooterStatus.valueOf(state);
-        scooter = new Scooter(7L, "Standard", 1L, initial);
+        reset(repository, history);
+        recorded.clear();
+        scooter = new Scooter(7L, "Standard", 1L, ScooterStatus.valueOf(state));
         when(repository.findByIdForUpdate(7L)).thenAnswer(call -> Optional.of(scooter));
         when(repository.save(any())).thenAnswer(call -> {
             scooter = call.getArgument(0);
@@ -40,35 +41,38 @@ public class ScooterLifecycleSteps {
         doAnswer(call -> { recorded.add(call.getArgument(0)); return null; }).when(history).append(any());
     }
 
-    @When("its state is changed to {word} because of {word}")
-    public void changeState(String target, String cause) {
-        try {
-            service.changeStatus(7L, ScooterStatus.valueOf(target), StateChangeCause.valueOf(cause));
-        } catch (ConflictException exception) {
-            rejected = exception;
+    @When("the scooter follows these lifecycle changes")
+    public void followChanges(DataTable table) {
+        ScooterStatus previous = ScooterStatus.AVAILABLE;
+        for (var row : table.asMaps()) {
+            ScooterStatus target = ScooterStatus.valueOf(row.get("state"));
+            StateChangeCause cause = StateChangeCause.valueOf(row.get("cause"));
+            expectedHistory.add(new ScooterStateChange(null, 7L, previous, target, NOW, cause));
+            service.changeStatus(7L, target, cause);
+            assertThat(scooter.status()).as("Persisted state after %s -> %s", previous, target).isEqualTo(target);
+            previous = target;
         }
     }
 
-    @Then("the scooter is in state {word}")
-    public void stateIs(String expected) {
-        assertThat(scooter.status()).as("Persisted scooter state follows the lifecycle").isEqualTo(ScooterStatus.valueOf(expected));
+    @Then("the scooter is retired and every change has its expected audit record")
+    public void verifyHistory() {
+        assertThat(scooter.status()).isEqualTo(ScooterStatus.RETIRED);
+        assertThat(recorded).as("One ordered audit record per change, with the supplied cause and fixed time")
+                .containsExactlyElementsOf(expectedHistory);
     }
 
-    @Then("one state change is recorded with the fixed time and cause {word}")
-    public void recordedChange(String cause) {
-        assertThat(rejected).as("Allowed transitions succeed").isNull();
-        assertThat(recorded).as("Exactly one audit record per successful change").containsExactly(
-                new ScooterStateChange(null, 7L, initial, scooter.status(), NOW, StateChangeCause.valueOf(cause)));
-    }
-
-    @Then("the change is rejected as a conflict")
-    public void conflict() {
-        assertThat(rejected).as("Invalid changes map to HTTP 409").isInstanceOf(ConflictException.class);
-        verify(repository, never()).save(any());
-    }
-
-    @Then("no state change is recorded")
-    public void noChange() {
-        assertThat(recorded).as("Rejected transitions do not create history").isEmpty();
+    @Then("these lifecycle changes are rejected without saving anything")
+    public void forbiddenChanges(DataTable table) {
+        for (var row : table.asMaps()) {
+            initialState(row.get("from"));
+            Scooter original = scooter;
+            ScooterStatus target = ScooterStatus.valueOf(row.get("to"));
+            assertThatThrownBy(() -> service.changeStatus(7L, target, StateChangeCause.OPERATOR))
+                    .as("Forbidden transition %s -> %s", original.status(), target)
+                    .isInstanceOf(ConflictException.class);
+            assertThat(scooter).as("Rejected transitions preserve the persisted scooter").isEqualTo(original);
+            verify(repository, never()).save(any());
+            verify(history, never()).append(any());
+        }
     }
 }
