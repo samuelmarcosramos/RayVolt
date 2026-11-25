@@ -1,49 +1,47 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { MemoryRouter } from 'react-router-dom'
+import { afterEach, describe, expect, it } from 'vitest'
 import App from './App'
 
 afterEach(() => {
   cleanup()
-  vi.unstubAllGlobals()
 })
 
-describe('RayVolt home page', () => {
-  it('shows the backend health status when the API responds', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ status: 'UP' }),
-    })
-    vi.stubGlobal('fetch', fetchMock)
+function renderAt(path: string) {
+  render(
+    <MemoryRouter initialEntries={[path]}>
+      <App />
+    </MemoryRouter>,
+  )
+}
 
-    render(<App />)
-
-    expect(await screen.findByText(/Connected/)).toBeInTheDocument()
-    expect(screen.getByText('(UP)')).toBeInTheDocument()
-    expect(fetchMock).toHaveBeenCalledWith('/api/health', expect.anything())
+describe('RayVolt layout', () => {
+  it('shows the home page with the navbar', () => {
+    renderAt('/')
+    expect(screen.getByRole('heading', { level: 1, name: 'Your site, in motion.' })).toBeInTheDocument()
+    const nav = screen.getByRole('navigation', { name: 'Main' })
+    expect(nav).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Home' })).toHaveAttribute('aria-current', 'page')
   })
 
-  it('shows an error and allows retrying after a failed request', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockRejectedValueOnce(new Error('Network unavailable'))
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ status: 'UP' }),
-      })
-    vi.stubGlobal('fetch', fetchMock)
+  it('opens the fleet page from the navbar', async () => {
+    renderAt('/')
+    await userEvent.click(screen.getByRole('link', { name: 'Fleet' }))
+    expect(screen.getByRole('heading', { level: 1, name: 'Fleet' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Fleet' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('link', { name: 'Home' })).not.toHaveAttribute('aria-current')
+  })
 
-    render(<App />)
+  it('opens the fleet page from the home button', async () => {
+    renderAt('/')
+    await userEvent.click(screen.getByRole('link', { name: 'See the fleet' }))
+    expect(screen.getByRole('heading', { level: 1, name: 'Fleet' })).toBeInTheDocument()
+  })
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Network unavailable',
-    )
-
-    await userEvent.click(screen.getByRole('button', { name: 'Try again' }))
-
-    await waitFor(() => {
-      expect(screen.getByText('(UP)')).toBeInTheDocument()
-    })
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+  it('takes the user home from the logo', async () => {
+    renderAt('/fleet')
+    await userEvent.click(screen.getByRole('link', { name: 'RayVolt home' }))
+    expect(screen.getByRole('heading', { level: 1, name: 'Your site, in motion.' })).toBeInTheDocument()
   })
 })
