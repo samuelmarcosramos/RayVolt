@@ -110,15 +110,17 @@ abstract class FleetRepositoryContract {
     }
 
     @Test
-    void movesPersistAndReservedScootersCanRetire() {
+    void movesPersistAndReservedScootersCannotRetire() {
         Scooter scooter = service.add("Standard", hub);
         Long destination = 2L;
         jdbc.sql("INSERT INTO hubs (id, name, capacity) VALUES (:id, 'Destination', 1)").param("id", destination).update();
         service.edit(scooter.id(), "Patrol", destination);
         assertThat(repository.findById(scooter.id()).orElseThrow().hubId()).isEqualTo(destination);
         jdbc.sql("UPDATE scooters SET status = 'RESERVED' WHERE id = :id").param("id", scooter.id()).update();
-        service.retire(scooter.id());
-        assertThat(repository.findById(scooter.id()).orElseThrow().status()).isEqualTo(ScooterStatus.RETIRED);
+        List<ScooterStateChange> before = service.history(scooter.id());
+        assertThatThrownBy(() -> service.retire(scooter.id())).isInstanceOf(ConflictException.class);
+        assertThat(repository.findById(scooter.id()).orElseThrow().status()).isEqualTo(ScooterStatus.RESERVED);
+        assertThat(service.history(scooter.id())).containsExactlyElementsOf(before);
     }
 
     @Test

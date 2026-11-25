@@ -60,9 +60,7 @@ class FleetServiceTest {
         Scooter scooter = new Scooter(999L, "Standard", hub, status);
         repository.save(scooter);
         assertThatThrownBy(() -> service.edit(scooter.id(), "Patrol", hub)).isInstanceOf(ConflictException.class);
-        if (status != ScooterStatus.RESERVED) {
-            assertThatThrownBy(() -> service.retire(scooter.id())).isInstanceOf(ConflictException.class);
-        }
+        assertThatThrownBy(() -> service.retire(scooter.id())).isInstanceOf(ConflictException.class);
         assertThat(repository.items.get(scooter.id())).as("Rejected changes preserve the scooter").isEqualTo(scooter);
     }
 

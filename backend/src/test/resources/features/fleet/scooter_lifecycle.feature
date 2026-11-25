@@ -18,6 +18,7 @@ Feature: Scooter lifecycle
       | MAINTENANCE | TELEMETRY |
       | AVAILABLE   | TICKET    |
       | RESERVED    | USER      |
+      | AVAILABLE   | USER      |
       | RETIRED     | OPERATOR  |
     Then the scooter is retired and every change has its expected audit record
 
@@ -26,6 +27,7 @@ Feature: Scooter lifecycle
       | from        | to          |
       | AVAILABLE   | AVAILABLE   |
       | RESERVED    | RESERVED    |
+      | RESERVED    | RETIRED     |
       | IN_USE      | IN_USE      |
       | IN_USE      | RESERVED    |
       | IN_USE      | RETIRED     |

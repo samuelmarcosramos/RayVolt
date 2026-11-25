@@ -8,7 +8,8 @@ public enum ScooterStatus {
             return false;
         }
         return switch (this) {
-            case AVAILABLE, RESERVED -> true;
+            case AVAILABLE -> true;
+            case RESERVED -> target == AVAILABLE || target == IN_USE || target == MAINTENANCE;
             case IN_USE -> target == AVAILABLE || target == MAINTENANCE;
             case MAINTENANCE -> target == AVAILABLE || target == RETIRED;
             case RETIRED -> false;
