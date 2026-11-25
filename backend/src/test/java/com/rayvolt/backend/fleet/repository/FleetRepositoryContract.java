@@ -30,6 +30,7 @@ abstract class FleetRepositoryContract {
 
     @BeforeEach
     void prepareHub() {
+        jdbc.sql("DELETE FROM scooter_state_history").update();
         jdbc.sql("DELETE FROM scooters").update();
         jdbc.sql("DELETE FROM hubs").update();
         hub = 1L;

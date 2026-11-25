@@ -1,9 +1,14 @@
 package com.rayvolt.backend.fleet.service;
 
 import com.rayvolt.backend.common.exception.ConflictException;
+import com.rayvolt.backend.common.exception.BadRequestException;
 import com.rayvolt.backend.fleet.model.Scooter;
+import com.rayvolt.backend.fleet.model.ScooterStateChange;
+import com.rayvolt.backend.fleet.model.StateChangeCause;
 import com.rayvolt.backend.fleet.model.ScooterStatus;
 import com.rayvolt.backend.fleet.repository.FleetRepository;
+import com.rayvolt.backend.fleet.repository.ScooterStateHistoryRepository;
+import java.time.Clock;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
@@ -14,8 +19,13 @@ import java.util.Objects;
 public class FleetService {
     private final FleetRepository repository;
 
-    public FleetService(FleetRepository repository) {
+    private final ScooterStateHistoryRepository history;
+    private final Clock clock;
+
+    public FleetService(FleetRepository repository, ScooterStateHistoryRepository history, Clock clock) {
         this.repository = Objects.requireNonNull(repository);
+        this.history = Objects.requireNonNull(history);
+        this.clock = Objects.requireNonNull(clock);
     }
 
     public List<Scooter> list() {
@@ -31,7 +41,9 @@ public class FleetService {
         Scooter scooter = new Scooter(null, type, hubId, ScooterStatus.AVAILABLE);
         repository.lockHubs(hubId);
         requireSpace(hubId);
-        return repository.save(scooter);
+        Scooter created = repository.save(scooter);
+        recordChange(null, created, StateChangeCause.OPERATOR);
+        return created;
     }
 
     @Transactional
@@ -47,10 +59,29 @@ public class FleetService {
 
     @Transactional
     public Scooter retire(Long id) {
+        return changeStatus(id, ScooterStatus.RETIRED, StateChangeCause.OPERATOR);
+    }
+
+    @Transactional
+    public Scooter changeStatus(Long id, ScooterStatus target, StateChangeCause cause) {
+        if (cause == null) {
+            throw new BadRequestException("State change cause is required");
+        }
         Scooter current = find(id);
-        Scooter retired = current.retire();
+        Scooter changed = current.changeStatus(target);
         repository.lockHubs(current.hubId());
-        return repository.save(retired);
+        Scooter saved = repository.save(changed);
+        recordChange(current.status(), saved, cause);
+        return saved;
+    }
+
+    public List<ScooterStateChange> history(Long id) {
+        get(id);
+        return history.findByScooterId(id);
+    }
+
+    private void recordChange(ScooterStatus from, Scooter scooter, StateChangeCause cause) {
+        history.append(new ScooterStateChange(null, scooter.id(), from, scooter.status(), clock.instant(), cause));
     }
 
     private Scooter find(Long id) {

@@ -2,6 +2,11 @@ package com.rayvolt.backend.fleet;
 
 import com.rayvolt.backend.fleet.model.*;
 import com.rayvolt.backend.fleet.repository.FleetRepository;
+import com.rayvolt.backend.fleet.repository.ScooterStateHistoryRepository;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import static org.mockito.Mockito.mock;
 import com.rayvolt.backend.fleet.service.FleetService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -15,7 +20,8 @@ import static org.assertj.core.api.Assertions.*;
 class FleetServiceTest {
     private final Long hub = 1L;
     private final TestRepository repository = new TestRepository();
-    private final FleetService service = new FleetService(repository);
+    private final FleetService service = new FleetService(repository, mock(ScooterStateHistoryRepository.class),
+            Clock.fixed(Instant.parse("2026-11-25T10:00:00Z"), ZoneOffset.UTC));
 
     @Test
     void addedScooterStartsAvailable() {
