@@ -1,7 +1,6 @@
 package com.rayvolt.backend.service;
 
 import com.rayvolt.backend.model.Scooter;
-import com.rayvolt.backend.model.ScooterLive;
 import com.rayvolt.backend.model.ScooterState;
 import com.rayvolt.backend.model.ScooterStatus;
 import com.rayvolt.backend.model.TelemetryReading;
@@ -54,15 +53,16 @@ public class TelemetryService {
         if (reading.fault()) {
             scooter = markFaulty(reading.scooterId()).orElse(scooter);
         }
-        ScooterLive update = ScooterLive.of(scooter, state);
-        AfterCommit.run(() -> sse.publish(update));
+        Scooter changed = scooter;
+        ScooterState saved = state;
+        AfterCommit.run(() -> sse.publish(changed, saved));
     }
 
     @Transactional
     public void recordFault(Long scooterId) {
         markFaulty(scooterId).ifPresent(scooter -> {
-            ScooterLive update = ScooterLive.of(scooter, states.findById(scooterId).orElse(null));
-            AfterCommit.run(() -> sse.publish(update));
+            ScooterState state = states.findById(scooterId).orElse(null);
+            AfterCommit.run(() -> sse.publish(scooter, state));
         });
     }
 

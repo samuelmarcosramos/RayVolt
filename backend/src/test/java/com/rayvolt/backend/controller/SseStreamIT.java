@@ -53,7 +53,7 @@ class SseStreamIT {
                 first = events.poll(200, TimeUnit.MILLISECONDS);
             }
             assertThat(first).as("Reading arrives on the stream").contains("\"scooterId\":" + scooter,
-                    "\"battery\":64", "\"status\":\"AVAILABLE\"");
+                    "\"battery\":64", "\"status\":\"AVAILABLE\"", "\"hubName\":\"Main Gate\"");
             telemetry.recordFault(scooter);
             assertThat(nextWith(events, "\"status\":\"MAINTENANCE\"")).as("Fault arrives on the stream").isTrue();
         } finally {
