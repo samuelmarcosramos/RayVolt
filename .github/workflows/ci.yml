@@ -44,6 +44,54 @@ jobs:
       - name: Build and test (Dependabot, no secrets)
         if: github.actor == 'dependabot[bot]'
         run: ./mvnw -B verify
+      - name: Upload test results to Xray
+        if: ${{ !cancelled() && github.event_name == 'push' }}
+        env:
+          XRAY_CLIENT_ID: ${{ secrets.XRAY_CLIENT_ID }}
+          XRAY_CLIENT_SECRET: ${{ secrets.XRAY_CLIENT_SECRET }}
+          XRAY_PROJECT_KEY: PT
+        run: |
+          set -euo pipefail
+
+          shopt -s nullglob
+          reports=(
+            target/surefire-reports/TEST-*.xml
+            target/failsafe-reports/TEST-*.xml
+          )
+
+          if [ ${#reports[@]} -eq 0 ]; then
+            echo "No JUnit test reports found."
+            exit 1
+          fi
+
+          echo "Authenticating with Xray Cloud..."
+
+          TOKEN=$(curl --silent --show-error --fail \
+            -X POST \
+            -H "Content-Type: application/json" \
+            --data "$(jq -n \
+              --arg id "$XRAY_CLIENT_ID" \
+              --arg secret "$XRAY_CLIENT_SECRET" \
+              '{client_id: $id, client_secret: $secret}')" \
+            https://xray.cloud.getxray.app/api/v2/authenticate \
+            | jq -er 'strings')
+
+          echo "::add-mask::$TOKEN"
+
+          for report in "${reports[@]}"; do
+            echo "Uploading $report to Xray..."
+
+            curl --silent --show-error --fail-with-body \
+              -X POST \
+              -H "Authorization: Bearer $TOKEN" \
+              -H "Content-Type: text/xml" \
+              --data-binary @"$report" \
+              "https://xray.cloud.getxray.app/api/v2/import/execution/junit?projectKey=$XRAY_PROJECT_KEY"
+
+            echo
+          done
+
+          echo "Test results successfully uploaded."
       - name: Archive backend test results
         if: always()
         uses: actions/upload-artifact@v4
@@ -115,35 +163,3 @@ jobs:
         run: curl --fail --retry 20 --retry-all-errors --retry-delay 3 http://localhost:3000/api/health
       - if: always()
         run: docker compose down -v
-
-  xray:
-    needs: [backend, frontend, simulator]
-    if: >-
-      always() && !cancelled() && vars.XRAY_ENABLED == 'true' &&
-      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      actions: read
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: '*-test-results'
-          path: reports/raw
-      - name: Prepare requirement links
-        run: python scripts/xray_report.py --reports reports/raw --output reports/xray.xml
-      - uses: actions/upload-artifact@v4
-        with:
-          name: xray-report
-          path: reports/xray.xml
-      - name: Upload results to Xray Cloud
-        env:
-          XRAY_CLIENT_ID: ${{ secrets.XRAY_CLIENT_ID }}
-          XRAY_CLIENT_SECRET: ${{ secrets.XRAY_CLIENT_SECRET }}
-          XRAY_PROJECT_KEY: ${{ vars.XRAY_PROJECT_KEY || 'PT' }}
-          XRAY_TEST_PLAN_KEY: ${{ vars.XRAY_TEST_PLAN_KEY }}
-        run: python scripts/xray_upload.py reports/xray.xml
