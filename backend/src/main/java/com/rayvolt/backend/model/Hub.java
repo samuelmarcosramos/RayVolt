@@ -13,6 +13,7 @@ public class Hub {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     private String name;
+    private String department;
     private int capacity;
     private Double lat;
     private Double lon;
@@ -27,6 +28,18 @@ public class Hub {
         this.lat = lat;
         this.lon = lon;
     }
+
+    public Hub(HubDetails details) { edit(details); }
+
+    public void edit(HubDetails details) {
+        name = details.name();
+        department = details.department();
+        capacity = details.capacity();
+        lat = details.lat();
+        lon = details.lon();
+    }
+
+    public String getDepartment() { return department; }
 
     public Long getId() {
         return id;

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import './App.css'
+import Hubs from './Hubs'
 
 type BackendState =
   | { kind: 'loading' }
@@ -18,6 +19,7 @@ function isHealthResponse(value: unknown): value is { status: string } {
 }
 
 function App() {
+  const [showHubs, setShowHubs] = useState(false)
   const [backend, setBackend] = useState<BackendState>({ kind: 'loading' })
 
   const checkBackend = useCallback(async (signal?: AbortSignal) => {
@@ -109,6 +111,9 @@ function App() {
           )}
         </section>
       </section>
+
+      <button type="button" onClick={() => setShowHubs(value => !value)}>{showHubs ? 'Hide hubs' : 'View hubs'}</button>
+      {showHubs && <Hubs />}
 
       <footer className="footer">
         <span>RayVolt</span>

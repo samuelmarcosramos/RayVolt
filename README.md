@@ -39,3 +39,7 @@ Every member is also a developer.
 | Static analysis dashboard | not available yet |
 | Observability dashboard | not available yet |
 | Deployed application | not available yet |
+
+## Hub management
+
+[Hub API, validation rules and acceptance tests](docs/api/hubs.md).
