@@ -63,6 +63,14 @@ public class FleetService {
     }
 
     @Transactional
+    public Scooter changeOperatorStatus(Long id, ScooterStatus target) {
+        if (target == ScooterStatus.RESERVED || target == ScooterStatus.IN_USE) {
+            throw new ConflictException("Reservations and rides must use the booking and trip flows");
+        }
+        return changeStatus(id, target, StateChangeCause.OPERATOR);
+    }
+
+    @Transactional
     public Scooter changeStatus(Long id, ScooterStatus target, StateChangeCause cause) {
         if (cause == null) {
             throw new BadRequestException("State change cause is required");

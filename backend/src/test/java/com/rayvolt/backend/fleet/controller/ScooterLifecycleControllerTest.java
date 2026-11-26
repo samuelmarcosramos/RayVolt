@@ -22,12 +22,16 @@ class ScooterLifecycleControllerTest {
     @MockitoBean private FleetService service;
 
     @Test
-    void stateAndHistoryEndpointsReturnTheirDocumentedFields() throws Exception {
-        when(service.changeStatus(7L, ScooterStatus.RESERVED, StateChangeCause.USER))
-                .thenReturn(new Scooter(7L, "Standard", 1L, ScooterStatus.RESERVED));
+    void operatorChangeReturnsTheNewState() throws Exception {
+        when(service.changeOperatorStatus(7L, ScooterStatus.MAINTENANCE))
+                .thenReturn(new Scooter(7L, "Standard", 1L, ScooterStatus.MAINTENANCE));
         mvc.perform(patch("/api/scooters/7/state").contentType("application/json")
-                        .content("{\"status\":\"RESERVED\",\"cause\":\"USER\"}"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("RESERVED"));
+                        .content("{\"status\":\"MAINTENANCE\",\"cause\":\"TELEMETRY\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("MAINTENANCE"));
+    }
+
+    @Test
+    void historyReturnsStateTimeAndCause() throws Exception {
         when(service.history(7L)).thenReturn(List.of(new ScooterStateChange(1L, 7L,
                 ScooterStatus.AVAILABLE, ScooterStatus.RESERVED, Instant.parse("2026-11-25T10:00:00Z"),
                 StateChangeCause.USER)));
@@ -40,7 +44,7 @@ class ScooterLifecycleControllerTest {
 
     @Test
     void forbiddenChangeReturnsConflictProblemDetail() throws Exception {
-        when(service.changeStatus(7L, ScooterStatus.AVAILABLE, StateChangeCause.OPERATOR))
+        when(service.changeOperatorStatus(7L, ScooterStatus.AVAILABLE))
                 .thenThrow(new ConflictException("Cannot change scooter state from RETIRED to AVAILABLE"));
         mvc.perform(patch("/api/scooters/7/state").contentType("application/json")
                         .content("{\"status\":\"AVAILABLE\",\"cause\":\"OPERATOR\"}"))
@@ -50,8 +54,8 @@ class ScooterLifecycleControllerTest {
     }
 
     @Test
-    void missingStatusOrCauseNeverReachesTheService() throws Exception {
-        for (String body : List.of("{\"cause\":\"USER\"}", "{\"status\":\"RESERVED\"}")) {
+    void missingStatusNeverReachesTheService() throws Exception {
+        for (String body : List.of("{}", "{\"status\":null}")) {
             mvc.perform(patch("/api/scooters/7/state").contentType("application/json").content(body))
                     .andExpect(status().isBadRequest())
                     .andExpect(content().contentTypeCompatibleWith("application/problem+json"));

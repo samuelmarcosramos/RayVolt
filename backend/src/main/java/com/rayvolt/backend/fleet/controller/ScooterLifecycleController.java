@@ -1,10 +1,10 @@
 package com.rayvolt.backend.fleet.controller;
 
-import com.rayvolt.backend.common.exception.BadRequestException;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
 import com.rayvolt.backend.fleet.model.Scooter;
 import com.rayvolt.backend.fleet.model.ScooterStateChange;
 import com.rayvolt.backend.fleet.model.ScooterStatus;
-import com.rayvolt.backend.fleet.model.StateChangeCause;
 import com.rayvolt.backend.fleet.service.FleetService;
 import io.swagger.v3.oas.annotations.Operation;
 import org.springframework.web.bind.annotation.*;
@@ -21,22 +21,17 @@ public class ScooterLifecycleController {
     }
 
     @PatchMapping("/state")
-    @Operation(summary = "Change scooter state", description = "Applies the PT-34 lifecycle and records the cause. Reserved and in-use scooters cannot be retired. Invalid transitions return 409.")
-    public Scooter changeStatus(@PathVariable Long id, @RequestBody StateChangeRequest request) {
-        return service.changeStatus(id, request.status(), request.cause());
+    @Operation(summary = "Change scooter state", description = "Changes the scooter state and records the operator cause. Returns 409 for a change that is not allowed.")
+    public Scooter changeStatus(@PathVariable Long id, @Valid @RequestBody StateChangeRequest request) {
+        return service.changeOperatorStatus(id, request.status());
     }
 
     @GetMapping("/state-history")
-    @Operation(summary = "Read scooter state history", description = "Returns changes in recording order. A null fromStatus denotes creation; pre-existing history is not fabricated.")
+    @Operation(summary = "Read scooter state history", description = "Returns the state changes of a scooter, oldest first.")
     public List<ScooterStateChange> history(@PathVariable Long id) {
         return service.history(id);
     }
 
-    public record StateChangeRequest(ScooterStatus status, StateChangeCause cause) {
-        public StateChangeRequest {
-            if (status == null || cause == null) {
-                throw new BadRequestException("Target state and cause are required");
-            }
-        }
+    public record StateChangeRequest(@NotNull ScooterStatus status) {
     }
 }
