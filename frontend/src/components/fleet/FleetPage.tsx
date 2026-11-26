@@ -4,6 +4,7 @@ import StatCard from '../reusable/StatCard'
 import FleetIntro from './FleetIntro'
 import {
   batteryColor,
+  mergeSnapshot,
   STATUS_LABELS,
   type ScooterLive,
   type ScooterStatus,
@@ -32,17 +33,14 @@ function FleetPage() {
 
   useEffect(() => {
     const controller = new AbortController()
-    let unsubscribe: (() => void) | null = null
+    const unsubscribe = subscribeToScooters({
+      onUpdate: (update) => setScooters((current) => upsert(current, update)),
+      onOpen: () => setConnection('live'),
+      onError: () => setConnection('reconnecting'),
+    })
 
     getScooterStates(controller.signal)
-      .then((initial) => {
-        setScooters([...initial].sort((a, b) => a.scooterId - b.scooterId))
-        unsubscribe = subscribeToScooters({
-          onUpdate: (update) => setScooters((current) => upsert(current, update)),
-          onOpen: () => setConnection('live'),
-          onError: () => setConnection('reconnecting'),
-        })
-      })
+      .then((initial) => setScooters((current) => mergeSnapshot(current, initial)))
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === 'AbortError') {
           return
@@ -52,7 +50,7 @@ function FleetPage() {
 
     return () => {
       controller.abort()
-      unsubscribe?.()
+      unsubscribe()
     }
   }, [])
 

@@ -52,7 +52,23 @@ export function timeAgo(lastSeen: string | null, now: number): string {
   return `${Math.floor(minutes / 60)} h ago`
 }
 
+function seenBefore(a: ScooterLive, b: ScooterLive): boolean {
+  return a.lastSeen !== null && b.lastSeen !== null && Date.parse(a.lastSeen) < Date.parse(b.lastSeen)
+}
+
+export function mergeSnapshot(current: ScooterLive[], initial: ScooterLive[]): ScooterLive[] {
+  const fresh = initial.filter((scooter) => {
+    const live = current.find((item) => item.scooterId === scooter.scooterId)
+    return live === undefined || seenBefore(live, scooter)
+  })
+  return fresh.reduce(upsert, current)
+}
+
 export function upsert(scooters: ScooterLive[], update: ScooterLive): ScooterLive[] {
+  const existing = scooters.find((scooter) => scooter.scooterId === update.scooterId)
+  if (existing !== undefined && seenBefore(update, existing)) {
+    return scooters
+  }
   const others = scooters.filter((scooter) => scooter.scooterId !== update.scooterId)
   return [...others, update].sort((a, b) => a.scooterId - b.scooterId)
 }
