@@ -183,7 +183,7 @@ class TelemetryServiceTest {
     }
 
     @Test
-    void faultEventIsSentOnlyWhenTheStatusChanges() {
+    void faultEventIsSentOnlyWhenSomethingChanges() {
         scooterIs(ScooterStatus.AVAILABLE);
         when(states.findById(7L)).thenReturn(Optional.empty());
         service.recordFault(7L);
@@ -192,5 +192,30 @@ class TelemetryServiceTest {
         verify(sse, times(1)).publish(sent.capture());
         assertThat(sent.getValue()).isEqualTo(new ScooterLive(7L, ScooterStatus.MAINTENANCE, null, null, null, null,
                 false, null));
+    }
+
+    @Test
+    void faultEventDuringARideKeepsTheScooterInUseAndStoresTheFault() {
+        Scooter scooter = scooterIs(ScooterStatus.IN_USE);
+        ScooterState state = new ScooterState(reading(0, 40.612, PositionStatus.MOVING), NOW);
+        when(states.findById(7L)).thenReturn(Optional.of(state));
+        service.recordFault(7L);
+        assertThat(scooter.getStatus()).isEqualTo(ScooterStatus.IN_USE);
+        verify(scooters, never()).save(any());
+        verify(states).save(state);
+        assertThat(state.isFault()).isTrue();
+    }
+
+    @Test
+    void faultEventDuringARideIsSentToTheLiveDashboard() {
+        scooterIs(ScooterStatus.IN_USE);
+        ScooterState state = new ScooterState(reading(0, 40.612, PositionStatus.MOVING), NOW);
+        when(states.findById(7L)).thenReturn(Optional.of(state));
+        service.recordFault(7L);
+        service.recordFault(7L);
+        ArgumentCaptor<ScooterLive> sent = ArgumentCaptor.forClass(ScooterLive.class);
+        verify(sse, times(1)).publish(sent.capture());
+        assertThat(sent.getValue().status()).isEqualTo(ScooterStatus.IN_USE);
+        assertThat(sent.getValue().fault()).isTrue();
     }
 }

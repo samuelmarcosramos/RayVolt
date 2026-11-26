@@ -67,8 +67,14 @@ public class TelemetryService {
             return;
         }
         Scooter scooter = found.get();
-        if (markFaulty(scooter)) {
-            ScooterLive update = ScooterLive.of(scooter, states.findById(scooterId).orElse(null));
+        boolean statusChanged = markFaulty(scooter);
+        ScooterState state = states.findById(scooterId).orElse(null);
+        boolean flagChanged = state != null && state.markFault();
+        if (flagChanged) {
+            states.save(state);
+        }
+        if (statusChanged || flagChanged) {
+            ScooterLive update = ScooterLive.of(scooter, state);
             AfterCommit.run(() -> sse.publish(update));
         }
     }

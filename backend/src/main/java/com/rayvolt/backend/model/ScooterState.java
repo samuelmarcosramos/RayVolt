@@ -46,6 +46,14 @@ public class ScooterState {
         copy(reading, receivedAt);
     }
 
+    public boolean markFault() {
+        if (fault) {
+            return false;
+        }
+        fault = true;
+        return true;
+    }
+
     private void copy(TelemetryReading reading, Instant receivedAt) {
         this.readingAt = reading.timestamp();
         this.receivedAt = receivedAt;
