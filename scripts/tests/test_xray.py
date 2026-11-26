@@ -64,7 +64,7 @@ class XrayReportsTest(unittest.TestCase):
             upload(Path('unused'))
         post.assert_not_called()
 
-    @patch.dict(os.environ, {'XRAY_CLIENT_ID': 'synthetic-id', 'XRAY_CLIENT_SECRET': 'synthetic-secret',
+    @patch.dict(os.environ, {'XRAY_CLIENT_ID': ' synthetic-id\n', 'XRAY_CLIENT_SECRET': 'synthetic-secret\n',
                              'XRAY_PROJECT_KEY': 'PT', 'XRAY_TEST_PLAN_KEY': 'PT-500'}, clear=True)
     @patch('scripts.xray_upload.post', side_effect=['synthetic-token', {'testExecIssue': {'key': 'PT-501'}}])
     def test_upload_authenticates_and_sends_report_with_plan(self, post):

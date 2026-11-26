@@ -20,7 +20,7 @@ def post(path, body, content_type, token=None):
 
 
 def upload(report):
-    credentials = {key: os.environ.get('XRAY_' + key.upper(), '') for key in ('client_id', 'client_secret')}
+    credentials = {key: os.environ.get('XRAY_' + key.upper(), '').strip() for key in ('client_id', 'client_secret')}
     if not all(credentials.values()):
         raise ValueError('Set XRAY_CLIENT_ID and XRAY_CLIENT_SECRET in GitHub Actions secrets')
     token = post('/authenticate', json.dumps(credentials).encode(), 'application/json')
@@ -44,7 +44,8 @@ if __name__ == '__main__':
     try:
         execution = upload(args.report)
     except urllib.error.HTTPError as error:
-        raise SystemExit(f'Xray import failed with HTTP {error.code}; check API permissions and project configuration') from None
+        endpoint = urllib.parse.urlparse(error.url).path
+        raise SystemExit(f'Xray {endpoint} failed with HTTP {error.code}; check API credentials and permissions') from None
     except (ValueError, OSError) as error:
         raise SystemExit(str(error)) from None
     print(f'Xray Test Execution: {execution}')
