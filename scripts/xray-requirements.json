@@ -1,16 +1,30 @@
 {
-  "*HubControllerTest*": ["PT-33"],
-  "*HubServiceTest*": ["PT-33"],
-  "*HubDetailsTest*": ["PT-33"],
-  "*H2HubRepositoryTest*": ["PT-33"],
-  "*PostgresHubRepositoryIT*": ["PT-33"],
-  "*HubAcceptanceIT*": ["PT-33"],
-  "*FleetControllerTest*": ["PT-32"],
-  "*FleetServiceTest*": ["PT-32"],
-  "*H2FleetRepositoryTest*": ["PT-32"],
-  "*PostgresFleetRepositoryIT*": ["PT-32", "PT-34"],
-  "*ScooterLifecycle*": ["PT-34"],
-  "*ScooterStateTest*": ["PT-34"],
-  "*MqttScooterAdapter*": ["PT-46"],
-  "*CommandServiceTest*": ["PT-46"]
+  "*FleetControllerTest*": [
+    "PT-32"
+  ],
+  "*FleetServiceTest*": [
+    "PT-32"
+  ],
+  "*H2FleetRepositoryTest*": [
+    "PT-32"
+  ],
+  "*PostgresFleetRepositoryIT*": [
+    "PT-32",
+    "PT-34"
+  ],
+  "*ScooterLifecycle*": [
+    "PT-34"
+  ],
+  "*ScooterStateTest*": [
+    "PT-34"
+  ],
+  "*MqttScooterAdapter*": [
+    "PT-46"
+  ],
+  "*CommandServiceTest*": [
+    "PT-46"
+  ],
+  "*FleetDashboardIT*": [
+    "PT-114"
+  ]
 }

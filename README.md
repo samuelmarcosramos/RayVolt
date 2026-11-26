@@ -39,7 +39,3 @@ Every member is also a developer.
 | Static analysis dashboard | not available yet |
 | Observability dashboard | not available yet |
 | Deployed application | not available yet |
-
-## Quality and testing
-
-[Xray setup, story links and CI result uploads](docs/xray.md).

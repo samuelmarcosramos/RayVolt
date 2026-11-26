@@ -8,6 +8,14 @@ import re
 import xml.etree.ElementTree as ET
 
 
+def load_mappings(path):
+    mappings = json.loads(path.read_text())
+    for extension in sorted(path.parent.glob('xray-*-requirements.json')):
+        for pattern, stories in json.loads(extension.read_text()).items():
+            mappings[pattern] = sorted(set(mappings.get(pattern, [])) | set(stories))
+    return mappings
+
+
 def merge_reports(paths, mappings):
     merged = ET.Element('testsuites')
     for path in sorted(paths):
@@ -56,7 +64,7 @@ if __name__ == '__main__':
     parser.add_argument('--mapping', type=Path, default=Path('scripts/xray-requirements.json'))
     parser.add_argument('--output', type=Path, default=Path('reports/xray.xml'))
     args = parser.parse_args()
-    report = merge_reports(args.reports.rglob('*.xml'), json.loads(args.mapping.read_text()))
+    report = merge_reports(args.reports.rglob('*.xml'), load_mappings(args.mapping))
     args.output.parent.mkdir(parents=True, exist_ok=True)
     ET.ElementTree(report).write(args.output, encoding='utf-8', xml_declaration=True)
     print(f'Prepared {report.get("tests")} test results in {args.output}')

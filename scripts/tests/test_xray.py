@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 import xml.etree.ElementTree as ET
-from scripts.xray_report import merge_reports
+from scripts.xray_report import load_mappings, merge_reports
 from scripts.xray_upload import upload
 
 
@@ -37,6 +37,21 @@ class XrayReportsTest(unittest.TestCase):
             case = merge_reports([path], {}).find('./testsuite/testcase')
             props = {prop.get('name'): prop.get('value') for prop in case.find('properties')}
             self.assertEqual(props, {'test_key': 'PT-900', 'requirements': 'PT-10,PT-33'})
+
+    def test_merges_multiple_producers_with_optional_story_mappings(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            mapping = folder / 'xray-requirements.json'
+            mapping.write_text('{"*Fleet*": ["PT-32"]}')
+            (folder / 'xray-hub-requirements.json').write_text('{"*Hub*": ["PT-33"]}')
+            backend = folder / 'backend.xml'
+            backend.write_text('<testsuite name="Fleet"><testcase name="add"/></testsuite>')
+            browser = folder / 'browser.xml'
+            browser.write_text('<testsuite name="HubPageIT"><testcase name="edit"><failure/></testcase></testsuite>')
+            root = merge_reports([backend, browser], load_mappings(mapping))
+            self.assertEqual(root.get('tests'), '2')
+            self.assertEqual(root.get('failures'), '1')
+            self.assertEqual([p.get('value') for p in root.findall('.//property')], ['PT-32', 'PT-33'])
 
     def test_empty_reports_fail(self):
         with self.assertRaisesRegex(ValueError, 'empty execution'):

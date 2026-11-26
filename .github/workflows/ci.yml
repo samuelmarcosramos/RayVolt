@@ -3,8 +3,9 @@ name: CI
 on:
   pull_request:
     branches: [dev, main]
+  workflow_dispatch:
   push:
-    branches: [dev, main]
+    branches: [dev, main, chore/PT-82-xray-ci]
 
 jobs:
   backend:
@@ -35,8 +36,18 @@ jobs:
         if: github.actor == 'dependabot[bot]'
         run: ./mvnw -B verify
 
+      - name: Archive backend JUnit reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-backend
+          path: |
+            backend/target/surefire-reports/TEST-*.xml
+            backend/target/failsafe-reports/TEST-*.xml
+          if-no-files-found: error
+
   e2e:
-    if: github.event_name == 'push'
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -60,6 +71,14 @@ jobs:
         run: ./mvnw -B test-compile exec:java -Dexec.args="install --with-deps chromium"
       - name: End-to-end tests
         run: ./mvnw -B -Pe2e verify -Djacoco.skip=true
+
+      - name: Archive browser JUnit reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-e2e
+          path: backend/target/failsafe-reports/TEST-*.xml
+          if-no-files-found: error
 
   frontend:
     runs-on: ubuntu-latest
@@ -89,7 +108,14 @@ jobs:
           cache: pip
           cache-dependency-path: simulator/requirements-dev.txt
       - run: pip install -r requirements-dev.txt
-      - run: pytest
+      - run: pytest --junitxml=reports/pytest.xml
+      - name: Archive simulator JUnit reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-simulator
+          path: simulator/reports/pytest.xml
+          if-no-files-found: error
 
   compose:
     runs-on: ubuntu-latest
@@ -100,3 +126,42 @@ jobs:
         run: curl --fail --retry 20 --retry-all-errors --retry-delay 3 http://localhost:3000/api/health
       - if: always()
         run: docker compose down -v
+
+  xray-tools:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: python -m unittest discover -s scripts/tests -v
+
+  xray:
+    needs: [backend, e2e, simulator, xray-tools]
+    if: ${{ !cancelled() && github.event_name != 'pull_request' && needs.xray-tools.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: junit-*
+          path: reports/raw
+      - name: Verify all report producers and merge results
+        run: |
+          for producer in backend e2e simulator; do
+            test -d "reports/raw/junit-$producer"
+          done
+          python scripts/xray_report.py --reports reports/raw --output reports/xray.xml
+      - uses: actions/upload-artifact@v4
+        with:
+          name: xray-report
+          path: reports/xray.xml
+      - name: Upload one Test Execution to Xray Cloud
+        env:
+          XRAY_CLIENT_ID: ${{ secrets.XRAY_CLIENT_ID }}
+          XRAY_CLIENT_SECRET: ${{ secrets.XRAY_CLIENT_SECRET }}
+          XRAY_PROJECT_KEY: PT
+        run: python scripts/xray_upload.py reports/xray.xml
