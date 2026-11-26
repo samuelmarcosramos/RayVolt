@@ -15,36 +15,33 @@
    |---|---|---|
    | Secret | `XRAY_CLIENT_ID` | Client ID from Xray |
    | Secret | `XRAY_CLIENT_SECRET` | Client Secret from Xray |
-   | Variable | `XRAY_PROJECT_KEY` | `PT` |
-   | Variable | `XRAY_ENABLED` | `true` |
-   | Variable, optional | `XRAY_TEST_PLAN_KEY` | Key of a real Xray Test Plan |
 
    Do not paste credentials into Jira comments, commits or workflow files.
 
 ## Link tests to user stories
 
-For a manual test: create an issue of type **Test**, open story **PT-33**, and use
+For a manual test, create an issue of type **Test**. For an automated test, first
+let CI import it, then select the resulting Generic Test. Open story **PT-33** and use
 its Xray **Test Coverage** section → **Add Tests** → choose the test. Depending on
 Jira's screen configuration, this can instead be done from the Test's covered
 requirements section. Verify PT-33 appears as a covered requirement.
 
-For this CI implementation, no manual linking is required for mapped tests:
-`scripts/xray-requirements.json` maps JUnit class/report patterns to story keys.
-Frontend test titles can also contain the story key, for example
-`PT-33 adds a hub`. The report preparer adds a testcase property:
+The CI uploads the original Maven JUnit XML directly. `@Tag("PT-33")`, a
+`@PT-33` feature tag or a story key in a test title alone does not add a requirement
+link through this JUnit import. Link the imported Tests to PT-33 in Xray as above.
+Subsequent imports match Generic Tests by class and test name, so keep names stable.
+`junit-platform.properties` uses long Cucumber names to distinguish outline examples.
+
+For optional automatic linking, Xray also accepts a `requirements` testcase property:
 
 ```xml
 <properties><property name="requirements" value="PT-33"/></properties>
 ```
 
-Xray's enhanced JUnit importer creates the coverage link and matches automated
-Tests by their generic definition (class + test name). Keep those names stable.
-`junit-platform.properties` uses long Cucumber names so examples in different
-scenario outlines have distinct test definitions.
-To bind an existing Generic Test explicitly, emit a `test_key` property with its
-real key; the preparer preserves it. A story key belongs in `requirements`, never
-in `test_key`. Update the mapping whenever another story adds tests. Unmapped
-infrastructure tests are imported without inventing a covered story.
+The optional `scripts/xray_report.py` utility can add these properties using
+`scripts/xray-requirements.json`; the direct-upload workflow does not call it.
+An existing Generic Test can also be identified by its real `test_key` property.
+A story key belongs in `requirements`, never in `test_key`.
 
 Cucumber scenarios are executed as acceptance tests and their Failsafe JUnit
 results are imported as **Generic** automated Tests by this workflow. Raw
@@ -62,46 +59,52 @@ acceptance cases as Generic Tests, to avoid duplicate test definitions.
 
 ## Upload results from CI
 
-- Pull requests build/test normally and archive reports, including failed tests.
-- Pushes to `dev` / `main`, or **Actions → CI → Run workflow**, run the Xray job
-  when `XRAY_ENABLED=true`. PR workflows do not upload results.
-- Backend Surefire/Failsafe, frontend Vitest and simulator pytest results are
-  downloaded, merged and enriched into the `xray-report` artifact.
-- The job authenticates at `/api/v2/authenticate`, then sends the merged XML to
-  `/api/v2/import/execution/junit?projectKey=PT`. Each run creates a Test Execution;
-  the optional plan variable adds it to a Test Plan.
-- The execution key appears in the job summary. Open that Test Execution in Jira,
-  check PASS/FAIL, then open PT-33 → **Test Coverage** and inspect the covered Tests.
-- Failed automated tests keep CI red and are still uploaded. Import/authentication
-  failures also fail the Xray job. Tests that never started cannot produce results.
+The backend step immediately after `./mvnw -B verify` uses Bash, curl and jq on
+`ubuntu-latest`, following the direct REST API approach supplied for the course.
+It runs on pushes to `dev` / `main`, including when preceding tests fail, provided
+the workflow has not been cancelled. Pull requests and manual runs do not upload.
 
-For local preparation without contacting Xray:
+1. Collect `target/surefire-reports/TEST-*.xml` and `target/failsafe-reports/TEST-*.xml`.
+2. Authenticate at `/api/v2/authenticate` with the two GitHub secrets.
+3. Mask the returned token in the Actions log.
+4. POST each XML separately to `/api/v2/import/execution/junit?projectKey=PT`.
+
+The project key is set directly to `PT` in the step. `XRAY_ENABLED`,
+`XRAY_PROJECT_KEY` and `XRAY_TEST_PLAN_KEY` repository variables are not needed.
+Each report import creates its own Test Execution; this version does not combine
+reports into a single execution. The API response with the execution key appears
+in the step log. Open that execution in Jira and check the test statuses, then
+associate the imported Tests to their stories through **Test Coverage**.
+
+Only backend reports are sent to Xray. Frontend, simulator and raw Cucumber reports
+remain downloadable as GitHub Actions artifacts. Cucumber results already included
+in Failsafe are not uploaded a second time from `target/cucumber`.
+
+Missing reports, authentication failures and upload failures fail the step.
+Failed tests keep CI red even if uploading succeeds. No real upload has been
+validated until the team configures its credentials and runs CI on GitHub.
+
+## Optional local utilities
+
+The previous report preparation and Python upload utilities remain available for
+manual use; they are not part of the direct-upload CI step:
 
 ```sh
 python -m unittest discover -s scripts/tests -v
 python scripts/xray_report.py --reports backend/target/surefire-reports --output /tmp/xray.xml
 ```
 
-The CI input directory includes both Surefire and Failsafe reports plus frontend
-and simulator XML. Avoid feeding `target/cucumber/*.xml` as well: those duplicate
-acceptance results already present in Failsafe.
-
-For an authorized local upload, set `XRAY_CLIENT_ID`, `XRAY_CLIENT_SECRET` and
-optionally `XRAY_PROJECT_KEY` / `XRAY_TEST_PLAN_KEY` in the environment, then run
-`python scripts/xray_upload.py /tmp/xray.xml`. The script also accepts
-`XRAY_TEST_EXEC_KEY` to update an existing Test Execution; CI deliberately creates
-a fresh execution per run. Never print tokens to the console.
+For an authorized local upload, set `XRAY_CLIENT_ID`, `XRAY_CLIENT_SECRET` in the
+environment and run `python scripts/xray_upload.py /tmp/xray.xml`. That optional
+script also accepts `XRAY_PROJECT_KEY`, `XRAY_TEST_PLAN_KEY`, `XRAY_TEST_EXEC_KEY`.
 
 ## Troubleshooting
 
-- **Job skipped:** check `XRAY_ENABLED` is a repository variable equal to `true`,
-  and that this is a push/manual run rather than a PR.
-- **401/403:** verify Xray API credentials and the associated user's permissions.
-- **400:** confirm issue types, required Jira fields and project key; extra required
-  Test Execution fields may require Xray's multipart endpoint and Jira field IDs.
-- **No coverage link:** ensure Story is configured as an Xray requirement type,
-  the story key is correct, and `requirements` appears in the `xray-report` XML.
-- **No reports:** inspect the original build/test job before retrying the upload.
+- **Step skipped:** check the event is a push rather than a PR or manual run.
+- **401/403:** check Xray Cloud credentials and the associated user's permissions.
+- **400:** check project issue types, required Jira fields and the project key.
+- **No coverage:** link the imported Generic Tests to their stories in Xray.
+- **No reports:** inspect the original backend build/test step.
 
 ## References
 
