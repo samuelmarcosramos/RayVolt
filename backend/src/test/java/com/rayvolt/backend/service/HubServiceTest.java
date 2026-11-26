@@ -17,6 +17,7 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 @Tag("PT-33")
 class HubServiceTest {
+    @Mock ScooterGateway gateway;
     @Mock HubRepository hubs;
     @Mock ScooterRepository scooters;
     @InjectMocks HubService service;

@@ -1,8 +1,14 @@
 package com.rayvolt.backend.model;
 
 import com.rayvolt.backend.errors.BadRequestException;
+import io.swagger.v3.oas.annotations.media.Schema;
 
-public record HubDetails(String name, String department, Integer capacity, Double lat, Double lon) {
+public record HubDetails(
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED, minLength = 1, maxLength = 120) String name,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED, minLength = 1, maxLength = 120) String department,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED, minimum = "1") Integer capacity,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED, minimum = "-90", maximum = "90") Double lat,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED, minimum = "-180", maximum = "180") Double lon) {
     public HubDetails {
         if (name == null || name.isBlank() || name.strip().length() > 120
                 || department == null || department.isBlank() || department.strip().length() > 120) {
