@@ -5,8 +5,18 @@ on:
     branches: [dev, main]
   push:
     branches: [dev, main]
+  workflow_dispatch:
 
 jobs:
+  xray-tools:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: python -m unittest discover -s scripts/tests -v
+
   backend:
     runs-on: ubuntu-latest
     defaults:
@@ -34,6 +44,22 @@ jobs:
       - name: Build and test (Dependabot, no secrets)
         if: github.actor == 'dependabot[bot]'
         run: ./mvnw -B verify
+      - name: Archive backend test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-results
+          path: |
+            backend/target/surefire-reports/TEST-*.xml
+            backend/target/failsafe-reports/TEST-*.xml
+          if-no-files-found: warn
+      - name: Archive Cucumber reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cucumber-results
+          path: backend/target/cucumber/
+          if-no-files-found: warn
 
   frontend:
     runs-on: ubuntu-latest
@@ -48,7 +74,14 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
-      - run: npm test
+      - run: npm test -- --reporter=default --reporter=junit --outputFile=reports/frontend.xml
+      - name: Archive frontend test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-test-results
+          path: frontend/reports/*.xml
+          if-no-files-found: warn
       - run: npm run build
 
   simulator:
@@ -64,7 +97,14 @@ jobs:
           cache: pip
           cache-dependency-path: simulator/requirements-dev.txt
       - run: pip install -r requirements-dev.txt
-      - run: pytest
+      - run: pytest --junitxml=reports/simulator.xml
+      - name: Archive simulator test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: simulator-test-results
+          path: simulator/reports/*.xml
+          if-no-files-found: warn
 
   compose:
     runs-on: ubuntu-latest
@@ -75,3 +115,35 @@ jobs:
         run: curl --fail --retry 20 --retry-all-errors --retry-delay 3 http://localhost:3000/api/health
       - if: always()
         run: docker compose down -v
+
+  xray:
+    needs: [backend, frontend, simulator]
+    if: >-
+      always() && !cancelled() && vars.XRAY_ENABLED == 'true' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: '*-test-results'
+          path: reports/raw
+      - name: Prepare requirement links
+        run: python scripts/xray_report.py --reports reports/raw --output reports/xray.xml
+      - uses: actions/upload-artifact@v4
+        with:
+          name: xray-report
+          path: reports/xray.xml
+      - name: Upload results to Xray Cloud
+        env:
+          XRAY_CLIENT_ID: ${{ secrets.XRAY_CLIENT_ID }}
+          XRAY_CLIENT_SECRET: ${{ secrets.XRAY_CLIENT_SECRET }}
+          XRAY_PROJECT_KEY: ${{ vars.XRAY_PROJECT_KEY || 'PT' }}
+          XRAY_TEST_PLAN_KEY: ${{ vars.XRAY_TEST_PLAN_KEY }}
+        run: python scripts/xray_upload.py reports/xray.xml
