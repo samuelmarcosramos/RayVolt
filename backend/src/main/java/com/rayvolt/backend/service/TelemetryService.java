@@ -4,6 +4,7 @@ import com.rayvolt.backend.model.Scooter;
 import com.rayvolt.backend.model.ScooterLive;
 import com.rayvolt.backend.model.ScooterState;
 import com.rayvolt.backend.model.ScooterStatus;
+import com.rayvolt.backend.model.StateChangeCause;
 import com.rayvolt.backend.model.TelemetryReading;
 import com.rayvolt.backend.repository.ScooterRepository;
 import com.rayvolt.backend.repository.ScooterStateRepository;
@@ -21,13 +22,15 @@ public class TelemetryService {
     private final ScooterStateRepository states;
     private final Clock clock;
     private final SseService sse;
+    private final ScooterLifecycleService lifecycle;
 
     public TelemetryService(ScooterRepository scooters, ScooterStateRepository states, Clock clock,
-            SseService sse) {
+            SseService sse, ScooterLifecycleService lifecycle) {
         this.scooters = scooters;
         this.states = states;
         this.clock = clock;
         this.sse = sse;
+        this.lifecycle = lifecycle;
     }
 
     @Transactional
@@ -81,11 +84,11 @@ public class TelemetryService {
 
     private boolean markFaulty(Scooter scooter) {
         ScooterStatus before = scooter.getStatus();
-        scooter.markFaulty();
-        if (scooter.getStatus() == before) {
+        // During a ride, report the fault without ending the trip (PT-46).
+        if (before == ScooterStatus.IN_USE || !before.canTransitionTo(ScooterStatus.MAINTENANCE)) {
             return false;
         }
-        scooters.save(scooter);
+        lifecycle.changeStatus(scooter.getId(), ScooterStatus.MAINTENANCE, StateChangeCause.TELEMETRY);
         LOG.info("Scooter {} reported a fault and moved from {} to {}", scooter.getId(), before, scooter.getStatus());
         return true;
     }

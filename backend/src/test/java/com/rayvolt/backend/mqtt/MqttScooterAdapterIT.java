@@ -74,6 +74,7 @@ class MqttScooterAdapterIT {
 
     @AfterEach
     void clearFleet() {
+        jdbc.sql("DELETE FROM scooter_state_history").update();
         jdbc.sql("DELETE FROM scooters").update();
     }
 
@@ -235,6 +236,10 @@ class MqttScooterAdapterIT {
         publish(scooter, "events", "{\"scooterId\": %d, \"timestamp\": \"2026-11-24T10:00:00Z\", \"type\": \"FAULT\"}"
                 .formatted(scooter));
         waitForStatus(scooter, "MAINTENANCE");
+        assertThat(jdbc.sql("SELECT cause FROM scooter_state_history WHERE scooter_id = :id")
+                .param("id", scooter).query(String.class).list())
+                .as("MQTT faults are audited once with the server telemetry cause")
+                .containsExactly("TELEMETRY");
     }
 
     @Test

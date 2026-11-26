@@ -31,6 +31,7 @@ class SseStreamIT {
 
     @AfterEach
     void clearFleet() {
+        jdbc.sql("DELETE FROM scooter_state_history").update();
         jdbc.sql("DELETE FROM scooters").update();
     }
 

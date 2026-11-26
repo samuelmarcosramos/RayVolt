@@ -1,6 +1,8 @@
 package com.rayvolt.backend.service;
 
 import com.rayvolt.backend.errors.ConflictException;
+import com.rayvolt.backend.model.ScooterStateChange;
+import com.rayvolt.backend.model.StateChangeCause;
 import com.rayvolt.backend.errors.NotFoundException;
 import com.rayvolt.backend.model.Hub;
 import com.rayvolt.backend.model.Scooter;
@@ -21,10 +23,14 @@ public class FleetService {
     private final HubRepository hubs;
     private final ScooterGateway gateway;
 
-    public FleetService(ScooterRepository scooters, HubRepository hubs, ScooterGateway gateway) {
+    private final ScooterLifecycleService lifecycle;
+
+    public FleetService(ScooterRepository scooters, HubRepository hubs, ScooterGateway gateway,
+            ScooterLifecycleService lifecycle) {
         this.scooters = scooters;
         this.hubs = hubs;
         this.gateway = gateway;
+        this.lifecycle = lifecycle;
     }
 
     public List<Scooter> list() {
@@ -40,6 +46,7 @@ public class FleetService {
         Scooter scooter = new Scooter(type, hubId);
         requireSpace(lockHubs(hubId).getFirst());
         Scooter saved = scooters.save(scooter);
+        lifecycle.recordChange(null, saved, StateChangeCause.OPERATOR);
         afterCommit(() -> gateway.registerScooter(saved.getId(), saved.getHubId()));
         return saved;
     }
@@ -58,13 +65,29 @@ public class FleetService {
 
     @Transactional
     public Scooter retire(Long id) {
-        Scooter scooter = find(id);
-        scooter.requireEditable();
-        lockHubs(scooter.getHubId());
-        scooter.retire();
-        Scooter saved = scooters.save(scooter);
-        afterCommit(() -> gateway.retireScooter(saved.getId(), saved.getHubId()));
+        return changeStatus(id, ScooterStatus.RETIRED, StateChangeCause.OPERATOR);
+    }
+
+    @Transactional
+    public Scooter changeOperatorStatus(Long id, ScooterStatus target) {
+        if (target == ScooterStatus.RESERVED || target == ScooterStatus.IN_USE) {
+            throw new ConflictException("Reservations and rides must use the booking and trip flows");
+        }
+        return changeStatus(id, target, StateChangeCause.OPERATOR);
+    }
+
+    @Transactional
+    public Scooter changeStatus(Long id, ScooterStatus target, StateChangeCause cause) {
+        Scooter saved = lifecycle.changeStatus(id, target, cause);
+        if (target == ScooterStatus.RETIRED) {
+            afterCommit(() -> gateway.retireScooter(saved.getId(), saved.getHubId()));
+        }
         return saved;
+    }
+
+    @Transactional(readOnly = true)
+    public List<ScooterStateChange> history(Long id) {
+        return lifecycle.history(id);
     }
 
     private void afterCommit(Runnable publish) {

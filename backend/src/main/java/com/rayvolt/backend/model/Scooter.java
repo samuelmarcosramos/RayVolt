@@ -62,14 +62,17 @@ public class Scooter {
     }
 
     public void retire() {
-        requireEditable();
-        status = ScooterStatus.RETIRED;
+        changeStatus(ScooterStatus.RETIRED);
     }
 
-    public void markFaulty() {
-        if (status == ScooterStatus.AVAILABLE || status == ScooterStatus.RESERVED) {
-            status = ScooterStatus.MAINTENANCE;
+    public void changeStatus(ScooterStatus target) {
+        if (target == null) {
+            throw new BadRequestException("Target state is required");
         }
+        if (!status.canTransitionTo(target)) {
+            throw new ConflictException("Cannot change scooter state from " + status + " to " + target);
+        }
+        status = target;
     }
 
     public boolean visibleToUsers() {

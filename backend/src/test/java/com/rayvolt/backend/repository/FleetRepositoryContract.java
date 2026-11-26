@@ -5,8 +5,8 @@ import com.rayvolt.backend.service.FleetService;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -27,6 +27,8 @@ abstract class FleetRepositoryContract {
 
     @BeforeEach
     void prepareHub() {
+        jdbc.sql("DELETE FROM scooter_state_history").update();
+        jdbc.sql("DELETE FROM scooter_state").update();
         jdbc.sql("DELETE FROM scooters").update();
         jdbc.sql("DELETE FROM hubs").update();
         hub = 1L;

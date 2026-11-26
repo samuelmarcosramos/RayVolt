@@ -10,6 +10,10 @@ import com.rayvolt.backend.repository.ScooterRepository;
 import com.rayvolt.backend.repository.ScooterStateRepository;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
+import com.rayvolt.backend.repository.HubRepository;
+import com.rayvolt.backend.repository.ScooterStateHistoryRepository;
+import com.rayvolt.backend.model.Hub;
 import org.mockito.ArgumentCaptor;
 import java.time.Clock;
 import java.time.Instant;
@@ -25,8 +29,18 @@ class TelemetryServiceTest {
     private final ScooterRepository scooters = mock(ScooterRepository.class);
     private final ScooterStateRepository states = mock(ScooterStateRepository.class);
     private final SseService sse = mock(SseService.class);
+    private final HubRepository hubs = mock(HubRepository.class);
+    private final ScooterStateHistoryRepository history = mock(ScooterStateHistoryRepository.class);
+    private final ScooterLifecycleService lifecycle = new ScooterLifecycleService(scooters, hubs, history,
+            Clock.fixed(NOW, ZoneOffset.UTC));
     private final TelemetryService service = new TelemetryService(scooters, states, Clock.fixed(NOW, ZoneOffset.UTC),
-            sse);
+            sse, lifecycle);
+
+    @BeforeEach
+    void prepareLifecycle() {
+        when(hubs.findByIdForUpdate(1L)).thenReturn(Optional.of(new Hub(1L, "Synthetic hub", 2, null, null)));
+        when(scooters.save(any())).thenAnswer(call -> call.getArgument(0));
+    }
 
     private TelemetryReading reading(int second, double lat, PositionStatus status) {
         return new TelemetryReading(7L, Instant.parse("2026-11-24T10:00:00Z").plusSeconds(second), 80, false, 15,
@@ -105,7 +119,7 @@ class TelemetryServiceTest {
         scooterIs(ScooterStatus.AVAILABLE);
         when(states.findById(7L)).thenReturn(Optional.empty());
         service.record(faultReading());
-        verify(scooters, times(1)).findByIdForUpdate(7L);
+        verify(scooters, times(2)).findByIdForUpdate(7L);
         verify(scooters, never()).findById(any());
     }
 
