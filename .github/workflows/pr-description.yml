@@ -26,6 +26,16 @@ jobs:
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
         run: |
+          template=.github/pull_request_template.md
+          if [ ! -f "$template" ]; then
+            echo "PR template not found: $template"
+            exit 1
+          fi
+          headings=$(grep '^## ' "$template" | sed 's/[[:space:]]*$//') || [ $? -eq 1 ]
+          if [ -z "$headings" ]; then
+            echo "PR template has no '## ' sections: $template"
+            exit 1
+          fi
           body=$(printf '%s\n' "$PR_BODY" | tr -d '\r' | sed 's/[[:space:]]*$//')
           missing=0
           while IFS= read -r heading; do
@@ -33,5 +43,5 @@ jobs:
               echo "Missing section: $heading"
               missing=1
             fi
-          done < <(grep '^## ' .github/pull_request_template.md | sed 's/[[:space:]]*$//')
+          done <<< "$headings"
           exit $missing
