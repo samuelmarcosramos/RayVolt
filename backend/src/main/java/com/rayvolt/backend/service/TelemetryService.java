@@ -32,7 +32,7 @@ public class TelemetryService {
 
     @Transactional
     public void record(TelemetryReading reading) {
-        Optional<Scooter> active = scooters.findById(reading.scooterId())
+        Optional<Scooter> active = scooters.findByIdForUpdate(reading.scooterId())
                 .filter(scooter -> scooter.getStatus() != ScooterStatus.RETIRED);
         if (active.isEmpty()) {
             LOG.warn("Ignored telemetry for unknown or retired scooter {}", reading.scooterId());
@@ -52,7 +52,7 @@ public class TelemetryService {
         states.save(state);
         Scooter scooter = active.get();
         if (reading.fault()) {
-            scooter = markFaulty(reading.scooterId()).orElse(scooter);
+            markFaulty(scooter);
         }
         ScooterLive update = ScooterLive.of(scooter, state);
         AfterCommit.run(() -> sse.publish(update));
@@ -60,27 +60,27 @@ public class TelemetryService {
 
     @Transactional
     public void recordFault(Long scooterId) {
-        markFaulty(scooterId).ifPresent(scooter -> {
-            ScooterLive update = ScooterLive.of(scooter, states.findById(scooterId).orElse(null));
-            AfterCommit.run(() -> sse.publish(update));
-        });
-    }
-
-    private Optional<Scooter> markFaulty(Long scooterId) {
         Optional<Scooter> found = scooters.findByIdForUpdate(scooterId)
                 .filter(scooter -> scooter.getStatus() != ScooterStatus.RETIRED);
         if (found.isEmpty()) {
             LOG.warn("Ignored fault for unknown or retired scooter {}", scooterId);
-            return Optional.empty();
+            return;
         }
         Scooter scooter = found.get();
+        if (markFaulty(scooter)) {
+            ScooterLive update = ScooterLive.of(scooter, states.findById(scooterId).orElse(null));
+            AfterCommit.run(() -> sse.publish(update));
+        }
+    }
+
+    private boolean markFaulty(Scooter scooter) {
         ScooterStatus before = scooter.getStatus();
         scooter.markFaulty();
         if (scooter.getStatus() == before) {
-            return Optional.empty();
+            return false;
         }
         scooters.save(scooter);
-        LOG.info("Scooter {} reported a fault and moved from {} to {}", scooterId, before, scooter.getStatus());
-        return Optional.of(scooter);
+        LOG.info("Scooter {} reported a fault and moved from {} to {}", scooter.getId(), before, scooter.getStatus());
+        return true;
     }
 }

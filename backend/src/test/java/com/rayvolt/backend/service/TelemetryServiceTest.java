@@ -40,7 +40,6 @@ class TelemetryServiceTest {
 
     private Scooter scooterIs(ScooterStatus status) {
         Scooter scooter = new Scooter(7L, "Standard", 1L, status);
-        when(scooters.findById(7L)).thenReturn(Optional.of(scooter));
         when(scooters.findByIdForUpdate(7L)).thenReturn(Optional.of(scooter));
         return scooter;
     }
@@ -81,7 +80,7 @@ class TelemetryServiceTest {
 
     @Test
     void unknownScooterIsIgnored() {
-        when(scooters.findById(7L)).thenReturn(Optional.empty());
+        when(scooters.findByIdForUpdate(7L)).thenReturn(Optional.empty());
         service.record(reading(0, 40.612, PositionStatus.AT_HUB));
         verifyNoInteractions(states);
     }
@@ -98,8 +97,16 @@ class TelemetryServiceTest {
         scooterIs(ScooterStatus.AVAILABLE);
         when(states.findById(7L)).thenReturn(Optional.empty());
         service.record(reading(0, 40.612, PositionStatus.AT_HUB));
-        verify(scooters, never()).findByIdForUpdate(any());
         verify(scooters, never()).save(any());
+    }
+
+    @Test
+    void readingLocksTheScooterBeforeCheckingItsStatus() {
+        scooterIs(ScooterStatus.AVAILABLE);
+        when(states.findById(7L)).thenReturn(Optional.empty());
+        service.record(faultReading());
+        verify(scooters, times(1)).findByIdForUpdate(7L);
+        verify(scooters, never()).findById(any());
     }
 
     @Test
@@ -170,7 +177,7 @@ class TelemetryServiceTest {
 
     @Test
     void ignoredReadingsAreNotSent() {
-        when(scooters.findById(7L)).thenReturn(Optional.empty());
+        when(scooters.findByIdForUpdate(7L)).thenReturn(Optional.empty());
         service.record(reading(0, 40.612, PositionStatus.AT_HUB));
         verifyNoInteractions(sse);
     }
