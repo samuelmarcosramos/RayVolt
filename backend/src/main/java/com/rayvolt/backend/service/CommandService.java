@@ -4,20 +4,26 @@ import com.rayvolt.backend.model.CommandReply;
 import com.rayvolt.backend.model.ScooterCommand;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import java.time.Duration;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 @Service
 public class CommandService {
     private static final Logger LOG = LoggerFactory.getLogger(CommandService.class);
     private final ScooterGateway gateway;
+    private final Duration timeout;
     private final Map<String, CompletableFuture<CommandReply>> waiting = new ConcurrentHashMap<>();
 
-    public CommandService(ScooterGateway gateway) {
+    public CommandService(ScooterGateway gateway, @Value("${rayvolt.commands.timeout}") Duration timeout) {
         this.gateway = gateway;
+        this.timeout = timeout;
         gateway.onReply(this::receive);
     }
 
@@ -25,8 +31,14 @@ public class CommandService {
         String commandId = UUID.randomUUID().toString();
         CompletableFuture<CommandReply> reply = new CompletableFuture<>();
         waiting.put(commandId, reply);
+        CompletableFuture<CommandReply> caller = reply.orTimeout(timeout.toMillis(), TimeUnit.MILLISECONDS)
+                .whenComplete((result, error) -> {
+                    if (error instanceof TimeoutException && waiting.remove(commandId, reply)) {
+                        LOG.warn("No reply from scooter {} to {} after {}", scooterId, command, timeout);
+                    }
+                });
         AfterCommit.run(() -> publish(scooterId, commandId, command));
-        return reply;
+        return caller;
     }
 
     int waitingCount() {
