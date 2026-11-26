@@ -142,6 +142,41 @@ abstract class FleetRepositoryContract {
         assertThatThrownBy(() -> service.get(999L)).isInstanceOf(NotFoundException.class);
     }
 
+    @Test
+    void availableScooterSearchFiltersByHubTypeStatusAndBatteryBoundary() {
+        jdbc.sql("UPDATE hubs SET capacity = 10 WHERE id = :id").param("id", hub).update();
+        Long otherHub = 2L;
+        jdbc.sql("INSERT INTO hubs (id, name, capacity) VALUES (:id, 'South Gate', 5)")
+                .param("id", otherHub).update();
+        Scooter atThreshold = service.add("Standard", hub);
+        Scooter belowThreshold = service.add("Standard", hub);
+        Scooter otherType = service.add("Cargo", hub);
+        Scooter inUse = service.add("Patrol", hub);
+        Scooter otherHubScooter = service.add("Standard", otherHub);
+        jdbc.sql("UPDATE scooters SET battery_percent = 10 WHERE id = :id").param("id", atThreshold.id()).update();
+        jdbc.sql("UPDATE scooters SET battery_percent = 9 WHERE id = :id").param("id", belowThreshold.id()).update();
+        jdbc.sql("UPDATE scooters SET battery_percent = 80 WHERE id = :id").param("id", otherType.id()).update();
+        jdbc.sql("UPDATE scooters SET battery_percent = 80, status = 'IN_USE' WHERE id = :id")
+                .param("id", inUse.id()).update();
+
+        assertThat(service.findAvailable(hub, "Standard", 10))
+                .extracting(Scooter::id).containsExactly(atThreshold.id());
+        assertThat(service.findAvailable(hub, null, 10))
+                .extracting(Scooter::id).containsExactlyInAnyOrder(atThreshold.id(), otherType.id());
+        assertThat(service.findAvailable(otherHub, null, 10))
+                .extracting(Scooter::id).containsExactly(otherHubScooter.id());
+    }
+
+    @Test
+    void hubSearchOptionsAreListedByNameAndId() {
+        jdbc.sql("INSERT INTO hubs (id, name, capacity) VALUES "
+                        + "(3, 'West Gate', 2), (2, 'East Gate', 2)")
+                .update();
+
+        assertThat(service.listHubs()).extracting(Hub::name)
+                .containsExactly("East Gate", "Synthetic hub", "West Gate");
+    }
+
     @ParameterizedTest
     @CsvSource({"-90, -180", "90, 180", "0, 0"})
     void hubPositionAcceptsBoundaryCoordinates(double lat, double lon) {

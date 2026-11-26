@@ -21,7 +21,44 @@ class FleetServiceTest {
     void addedScooterStartsAvailable() {
         Scooter scooter = service.add("Standard", hub);
         assertThat(scooter.status()).as("New scooters start available").isEqualTo(ScooterStatus.AVAILABLE);
+        assertThat(scooter.batteryPercent()).as("New scooters start fully charged").isEqualTo(100);
         assertThat(repository.items.get(scooter.id())).isEqualTo(scooter);
+    }
+
+    @Test
+    void availableScootersAreFilteredByHubTypeStatusAndBattery() {
+        Scooter standard = service.add("Standard", hub);
+        Scooter cargo = service.add("Cargo", hub);
+        Scooter otherHub = service.add("Standard", 2L);
+        repository.items.put(standard.id(), new Scooter(standard.id(), standard.type(), hub,
+                ScooterStatus.AVAILABLE, 10));
+        repository.items.put(cargo.id(), new Scooter(cargo.id(), cargo.type(), hub,
+                ScooterStatus.AVAILABLE, 9));
+        repository.items.put(otherHub.id(), new Scooter(otherHub.id(), otherHub.type(), 2L,
+                ScooterStatus.AVAILABLE, 100));
+
+        assertThat(service.findAvailable(hub, "Standard", 10))
+                .extracting(Scooter::id).containsExactly(standard.id());
+        assertThat(service.findAvailable(hub, null, 10))
+                .extracting(Scooter::id).containsExactly(standard.id());
+    }
+
+    @Test
+    void availableScootersRejectInvalidHubBatteryAndBlankType() {
+        assertThatThrownBy(() -> service.findAvailable(0L, null, 10)).isInstanceOf(BadRequestException.class);
+        assertThatThrownBy(() -> service.findAvailable(hub, null, -1)).isInstanceOf(BadRequestException.class);
+        assertThatThrownBy(() -> service.findAvailable(hub, null, 101)).isInstanceOf(BadRequestException.class);
+        assertThatThrownBy(() -> service.findAvailable(hub, " ", 10)).isInstanceOf(BadRequestException.class);
+    }
+
+    @Test
+    void scooterBatteryPercentageMustBeWithinZeroAndOneHundred() {
+        assertThat(new Scooter(1L, "Standard", hub, ScooterStatus.AVAILABLE, 0).batteryPercent()).isZero();
+        assertThat(new Scooter(2L, "Standard", hub, ScooterStatus.AVAILABLE, 100).batteryPercent()).isEqualTo(100);
+        assertThatThrownBy(() -> new Scooter(3L, "Standard", hub, ScooterStatus.AVAILABLE, -1))
+                .isInstanceOf(BadRequestException.class);
+        assertThatThrownBy(() -> new Scooter(4L, "Standard", hub, ScooterStatus.AVAILABLE, 101))
+                .isInstanceOf(BadRequestException.class);
     }
 
     @Test
@@ -78,6 +115,15 @@ class FleetServiceTest {
         private final Map<Long, Scooter> items = new HashMap<>();
         private boolean space = true;
         public List<Scooter> findAll() { return List.copyOf(items.values()); }
+        public List<Scooter> findAvailable(Long hubId, String type, int minimumBatteryPercent) {
+            return items.values().stream()
+                    .filter(scooter -> scooter.hubId().equals(hubId))
+                    .filter(scooter -> scooter.status() == ScooterStatus.AVAILABLE)
+                    .filter(scooter -> scooter.batteryPercent() >= minimumBatteryPercent)
+                    .filter(scooter -> type == null || scooter.type().equalsIgnoreCase(type))
+                    .toList();
+        }
+        public List<Hub> findHubs() { return List.of(new Hub(1L, "Test hub")); }
         public Optional<Scooter> findById(Long id) { return Optional.ofNullable(items.get(id)); }
         public Optional<Scooter> findByIdForUpdate(Long id) { return findById(id); }
         public void lockHubs(Long... hubIds) { }

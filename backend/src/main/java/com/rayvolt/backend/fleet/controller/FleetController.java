@@ -3,6 +3,8 @@ package com.rayvolt.backend.fleet.controller;
 import com.rayvolt.backend.common.exception.BadRequestException;
 import com.rayvolt.backend.fleet.model.Scooter;
 import com.rayvolt.backend.fleet.service.FleetService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.net.URI;
@@ -21,6 +23,20 @@ public class FleetController {
     @GetMapping
     public List<Scooter> list() {
         return service.list();
+    }
+
+    @GetMapping("/available")
+    @Operation(summary = "Find available scooters at a hub",
+            description = "Returns only AVAILABLE scooters at the selected hub with at least the requested battery. "
+                    + "The minimum battery is inclusive and defaults to 10 percent; type is optional.")
+    public List<Scooter> findAvailable(
+            @Parameter(description = "Positive ID of the selected hub")
+            @RequestParam Long hubId,
+            @Parameter(description = "Optional scooter type: Standard, Cargo, or Patrol")
+            @RequestParam(required = false) String type,
+            @Parameter(description = "Inclusive battery threshold from 0 to 100; defaults to 10")
+            @RequestParam(defaultValue = "10") int minBatteryPercent) {
+        return service.findAvailable(hubId, type, minBatteryPercent);
     }
 
     @GetMapping("/{id}")

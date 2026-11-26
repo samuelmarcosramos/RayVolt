@@ -2,6 +2,7 @@ package com.rayvolt.backend.fleet.repository;
 
 import com.rayvolt.backend.fleet.model.Scooter;
 import com.rayvolt.backend.fleet.model.ScooterStatus;
+import com.rayvolt.backend.fleet.model.Hub;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 import java.sql.ResultSet;
@@ -23,8 +24,29 @@ public class PostgresFleetRepository implements FleetRepository {
 
     @Override
     public List<Scooter> findAll() {
-        return jdbc.sql("SELECT id, type, hub_id, status FROM scooters ORDER BY id")
+        return jdbc.sql("SELECT id, type, hub_id, status, battery_percent FROM scooters ORDER BY id")
                 .query(PostgresFleetRepository::mapScooter).list();
+    }
+
+    @Override
+    public List<Scooter> findAvailable(Long hubId, String type, int minimumBatteryPercent) {
+        String sql = "SELECT id, type, hub_id, status, battery_percent FROM scooters "
+                + "WHERE hub_id = :hub AND status = 'AVAILABLE' AND battery_percent >= :minimumBattery";
+        if (type != null) {
+            sql += " AND LOWER(type) = LOWER(:type)";
+        }
+        var query = jdbc.sql(sql + " ORDER BY id")
+                .param("hub", hubId).param("minimumBattery", minimumBatteryPercent);
+        if (type != null) {
+            query.param("type", type);
+        }
+        return query.query(PostgresFleetRepository::mapScooter).list();
+    }
+
+    @Override
+    public List<Hub> findHubs() {
+        return jdbc.sql("SELECT id, name FROM hubs ORDER BY name, id")
+                .query((rs, row) -> new Hub(rs.getLong("id"), rs.getString("name"))).list();
     }
 
     @Override
@@ -38,7 +60,7 @@ public class PostgresFleetRepository implements FleetRepository {
     }
 
     private Optional<Scooter> find(Long id, boolean forUpdate) {
-        String sql = "SELECT id, type, hub_id, status FROM scooters WHERE id = :id";
+        String sql = "SELECT id, type, hub_id, status, battery_percent FROM scooters WHERE id = :id";
         return jdbc.sql(sql + (forUpdate ? " FOR UPDATE" : ""))
                 .param("id", id)
                 .query(PostgresFleetRepository::mapScooter)
@@ -47,7 +69,8 @@ public class PostgresFleetRepository implements FleetRepository {
 
     private static Scooter mapScooter(ResultSet rs, int row) throws SQLException {
         return new Scooter(rs.getLong("id"), rs.getString("type"),
-                rs.getLong("hub_id"), ScooterStatus.valueOf(rs.getString("status")));
+                rs.getLong("hub_id"), ScooterStatus.valueOf(rs.getString("status")),
+                rs.getInt("battery_percent"));
     }
 
     @Override
@@ -63,15 +86,19 @@ public class PostgresFleetRepository implements FleetRepository {
     public Scooter save(Scooter scooter) {
         if (scooter.id() == null) {
             GeneratedKeyHolder keys = new GeneratedKeyHolder();
-            jdbc.sql("INSERT INTO scooters (type, hub_id, status) VALUES (:type, :hub, :status)")
+            jdbc.sql("INSERT INTO scooters (type, hub_id, status, battery_percent) "
+                            + "VALUES (:type, :hub, :status, :battery)")
                     .param("type", scooter.type()).param("hub", scooter.hubId())
-                    .param("status", scooter.status().name()).update(keys, "id");
+                    .param("status", scooter.status().name()).param("battery", scooter.batteryPercent())
+                    .update(keys, "id");
             long id = Objects.requireNonNull(keys.getKey(), "Database did not return a scooter ID").longValue();
-            return new Scooter(id, scooter.type(), scooter.hubId(), scooter.status());
+            return new Scooter(id, scooter.type(), scooter.hubId(), scooter.status(), scooter.batteryPercent());
         }
-        int updated = jdbc.sql("UPDATE scooters SET type = :type, hub_id = :hub, status = :status WHERE id = :id")
+        int updated = jdbc.sql("UPDATE scooters SET type = :type, hub_id = :hub, status = :status, "
+                        + "battery_percent = :battery WHERE id = :id")
                 .param("id", scooter.id()).param("type", scooter.type())
-                .param("hub", scooter.hubId()).param("status", scooter.status().name()).update();
+                .param("hub", scooter.hubId()).param("status", scooter.status().name())
+                .param("battery", scooter.batteryPercent()).update();
         if (updated == 0) {
             throw new NotFoundException("Scooter not found");
         }

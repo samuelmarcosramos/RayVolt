@@ -1,8 +1,10 @@
 package com.rayvolt.backend.fleet.service;
 
 import com.rayvolt.backend.common.exception.ConflictException;
+import com.rayvolt.backend.common.exception.BadRequestException;
 import com.rayvolt.backend.fleet.model.Scooter;
 import com.rayvolt.backend.fleet.model.ScooterStatus;
+import com.rayvolt.backend.fleet.model.Hub;
 import com.rayvolt.backend.fleet.repository.FleetRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +22,23 @@ public class FleetService {
 
     public List<Scooter> list() {
         return repository.findAll();
+    }
+
+    public List<Scooter> findAvailable(Long hubId, String type, int minimumBatteryPercent) {
+        if (hubId == null || hubId <= 0) {
+            throw new BadRequestException("A positive hub ID is required");
+        }
+        if (minimumBatteryPercent < 0 || minimumBatteryPercent > 100) {
+            throw new BadRequestException("Minimum battery percentage must be between 0 and 100");
+        }
+        if (type != null && type.isBlank()) {
+            throw new BadRequestException("Scooter type must not be blank");
+        }
+        return repository.findAvailable(hubId, type == null ? null : type.strip(), minimumBatteryPercent);
+    }
+
+    public List<Hub> listHubs() {
+        return repository.findHubs();
     }
 
     public Scooter get(Long id) {

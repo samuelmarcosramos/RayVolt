@@ -11,6 +11,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.List;
 import com.rayvolt.backend.common.exception.NotFoundException;
 import com.rayvolt.backend.common.exception.ConflictException;
+import com.rayvolt.backend.common.exception.BadRequestException;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -32,6 +33,42 @@ class FleetControllerTest {
         when(service.list()).thenReturn(List.of());
         mvc.perform(get("/api/scooters")).andExpect(status().isOk())
                 .andExpect(content().json("[]"));
+    }
+
+    @Test
+    void availableScootersDefaultToTenPercentBattery() throws Exception {
+        when(service.findAvailable(hub, null, 10))
+                .thenReturn(List.of(new Scooter(id, "Standard", hub, ScooterStatus.AVAILABLE, 10)));
+
+        mvc.perform(get("/api/scooters/available").param("hubId", hub.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(id.intValue()))
+                .andExpect(jsonPath("$[0].type").value("Standard"))
+                .andExpect(jsonPath("$[0].batteryPercent").value(10));
+    }
+
+    @Test
+    void availableScootersPassOptionalTypeAndBatteryThreshold() throws Exception {
+        when(service.findAvailable(hub, "Patrol", 50))
+                .thenReturn(List.of(new Scooter(id, "Patrol", hub, ScooterStatus.AVAILABLE, 75)));
+
+        mvc.perform(get("/api/scooters/available").param("hubId", hub.toString())
+                        .param("type", "Patrol").param("minBatteryPercent", "50"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].type").value("Patrol"))
+                .andExpect(jsonPath("$[0].batteryPercent").value(75));
+    }
+
+    @Test
+    void availableScootersRejectInvalidThreshold() throws Exception {
+        when(service.findAvailable(hub, null, 101))
+                .thenThrow(new BadRequestException("Minimum battery percentage must be between 0 and 100"));
+
+        mvc.perform(get("/api/scooters/available").param("hubId", hub.toString())
+                        .param("minBatteryPercent", "101"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith("application/problem+json"));
+        verify(service).findAvailable(hub, null, 101);
     }
 
     @Test
