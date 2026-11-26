@@ -13,6 +13,7 @@ import java.time.Instant;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -25,7 +26,7 @@ import static org.mockito.Mockito.*;
 @Tag("PT-46")
 class CommandServiceTest {
     private final ScooterGateway gateway = mock(ScooterGateway.class);
-    private final CommandService service = new CommandService(gateway);
+    private final CommandService service = new CommandService(gateway, Duration.ofSeconds(10));
 
     @AfterEach
     void clearTransaction() {
@@ -125,5 +126,28 @@ class CommandServiceTest {
         replyListener().accept(reply(sentCommandId(), CommandReply.Status.COMPLETED, null));
         assertThat(reply).isCompletedExceptionally();
         assertThat(service.waitingCount()).isZero();
+    }
+
+    @Test
+    void commandWithoutAReplyFailsAfterTheTimeoutAndIsForgotten() {
+        CommandService quick = new CommandService(gateway, Duration.ofMillis(50));
+        CompletableFuture<CommandReply> reply = quick.send(7L, ScooterCommand.UNLOCK);
+        assertThat(reply).failsWithin(Duration.ofSeconds(2)).withThrowableOfType(ExecutionException.class)
+                .withCauseInstanceOf(TimeoutException.class);
+        assertThat(quick.waitingCount()).isZero();
+    }
+
+    @Test
+    void replyAfterTheTimeoutIsIgnored() {
+        CommandService quick = new CommandService(gateway, Duration.ofMillis(50));
+        CompletableFuture<CommandReply> reply = quick.send(7L, ScooterCommand.UNLOCK);
+        String commandId = sentCommandId();
+        assertThat(reply).failsWithin(Duration.ofSeconds(2));
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Consumer<CommandReply>> listeners = ArgumentCaptor.forClass(Consumer.class);
+        verify(gateway, times(2)).onReply(listeners.capture());
+        listeners.getAllValues().get(1).accept(reply(commandId, CommandReply.Status.COMPLETED, null));
+        assertThat(reply).isCompletedExceptionally();
+        assertThat(quick.waitingCount()).isZero();
     }
 }
