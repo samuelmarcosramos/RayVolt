@@ -8,6 +8,13 @@ import com.rayvolt.backend.model.Scooter;
 import com.rayvolt.backend.model.ScooterStatus;
 import com.rayvolt.backend.repository.HubRepository;
 import com.rayvolt.backend.repository.ScooterRepository;
+import com.rayvolt.backend.repository.ScooterStateHistoryRepository;
+import com.rayvolt.backend.model.ScooterStateChange;
+import com.rayvolt.backend.model.StateChangeCause;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
@@ -28,7 +35,31 @@ class FleetServiceTest {
     private final ScooterRepository scooters = mock(ScooterRepository.class);
     private final HubRepository hubs = mock(HubRepository.class);
     private final ScooterGateway gateway = mock(ScooterGateway.class);
-    private final FleetService service = new FleetService(scooters, hubs, gateway);
+    private static final Instant NOW = Instant.parse("2026-11-25T10:00:00Z");
+    private final ScooterStateHistoryRepository history = mock(ScooterStateHistoryRepository.class);
+    private final FleetService service = new FleetService(scooters, hubs, gateway,
+            new ScooterLifecycleService(scooters, hubs, history, Clock.fixed(NOW, ZoneOffset.UTC)));
+
+    @Test
+    @Tag("PT-34")
+    void operatorCannotReserveOrStartARide() {
+        for (ScooterStatus target : new ScooterStatus[] {ScooterStatus.RESERVED, ScooterStatus.IN_USE}) {
+            assertThatThrownBy(() -> service.changeOperatorStatus(7L, target))
+                    .as("Operator endpoint cannot enter %s", target).isInstanceOf(ConflictException.class);
+        }
+        verifyNoInteractions(scooters, history);
+    }
+
+    @Test
+    @Tag("PT-34")
+    void operatorChangeRecordsTheServerCause() {
+        stored(ScooterStatus.AVAILABLE);
+        service.changeOperatorStatus(7L, ScooterStatus.MAINTENANCE);
+        ArgumentCaptor<ScooterStateChange> change = ArgumentCaptor.forClass(ScooterStateChange.class);
+        verify(history).save(change.capture());
+        assertThat(change.getValue().getCause()).isEqualTo(StateChangeCause.OPERATOR);
+        assertThat(change.getValue().getChangedAt()).isEqualTo(NOW);
+    }
 
     @BeforeEach
     void setUp() {

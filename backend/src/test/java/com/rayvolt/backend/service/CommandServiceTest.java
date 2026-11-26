@@ -8,9 +8,11 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -105,11 +107,23 @@ class CommandServiceTest {
     }
 
     @Test
-    void brokerDownIsLoggedAndTheCommandKeepsWaiting() {
-        doThrow(new IllegalStateException("broker down")).when(gateway).sendCommand(anyLong(), anyString(), any());
+    void brokerDownFailsTheCommandForTheCallerAndForgetsIt() {
+        IllegalStateException brokerDown = new IllegalStateException("broker down");
+        doThrow(brokerDown).when(gateway).sendCommand(anyLong(), anyString(), any());
         CompletableFuture<CommandReply>[] reply = new CompletableFuture[1];
         assertThatCode(() -> reply[0] = service.send(7L, ScooterCommand.UNLOCK)).doesNotThrowAnyException();
-        assertThat(reply[0]).isNotDone();
-        assertThat(service.waitingCount()).isEqualTo(1);
+        assertThat(reply[0]).isCompletedExceptionally();
+        assertThat(reply[0]).failsWithin(Duration.ZERO).withThrowableOfType(ExecutionException.class)
+                .withCause(brokerDown);
+        assertThat(service.waitingCount()).isZero();
+    }
+
+    @Test
+    void replyAfterAFailedSendIsIgnored() {
+        doThrow(new IllegalStateException("broker down")).when(gateway).sendCommand(anyLong(), anyString(), any());
+        CompletableFuture<CommandReply> reply = service.send(7L, ScooterCommand.UNLOCK);
+        replyListener().accept(reply(sentCommandId(), CommandReply.Status.COMPLETED, null));
+        assertThat(reply).isCompletedExceptionally();
+        assertThat(service.waitingCount()).isZero();
     }
 }

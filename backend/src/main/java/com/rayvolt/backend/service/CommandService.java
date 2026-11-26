@@ -38,6 +38,10 @@ public class CommandService {
             gateway.sendCommand(scooterId, commandId, command);
         } catch (RuntimeException exception) {
             LOG.warn("Could not send {} to scooter {}: {}", command, scooterId, exception.getMessage());
+            CompletableFuture<CommandReply> caller = waiting.remove(commandId);
+            if (caller != null) {
+                caller.completeExceptionally(exception);
+            }
         }
     }
 

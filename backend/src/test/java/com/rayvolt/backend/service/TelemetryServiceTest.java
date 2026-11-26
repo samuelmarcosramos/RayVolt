@@ -9,6 +9,10 @@ import com.rayvolt.backend.repository.ScooterRepository;
 import com.rayvolt.backend.repository.ScooterStateRepository;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
+import com.rayvolt.backend.repository.HubRepository;
+import com.rayvolt.backend.repository.ScooterStateHistoryRepository;
+import com.rayvolt.backend.model.Hub;
 import org.mockito.ArgumentCaptor;
 import java.time.Clock;
 import java.time.Instant;
@@ -26,8 +30,18 @@ class TelemetryServiceTest {
     private final ScooterRepository scooters = mock(ScooterRepository.class);
     private final ScooterStateRepository states = mock(ScooterStateRepository.class);
     private final SseService sse = mock(SseService.class);
+    private final HubRepository hubs = mock(HubRepository.class);
+    private final ScooterStateHistoryRepository history = mock(ScooterStateHistoryRepository.class);
+    private final ScooterLifecycleService lifecycle = new ScooterLifecycleService(scooters, hubs, history,
+            Clock.fixed(NOW, ZoneOffset.UTC));
     private final TelemetryService service = new TelemetryService(scooters, states, Clock.fixed(NOW, ZoneOffset.UTC),
-            sse);
+            sse, lifecycle);
+
+    @BeforeEach
+    void prepareLifecycle() {
+        when(hubs.findByIdForUpdate(1L)).thenReturn(Optional.of(new Hub(1L, "Synthetic hub", 2, null, null)));
+        when(scooters.save(any())).thenAnswer(call -> call.getArgument(0));
+    }
 
     private TelemetryReading reading(int second, double lat, PositionStatus status) {
         return new TelemetryReading(7L, Instant.parse("2026-11-24T10:00:00Z").plusSeconds(second), 80, false, 15,
@@ -41,7 +55,6 @@ class TelemetryServiceTest {
 
     private Scooter scooterIs(ScooterStatus status) {
         Scooter scooter = new Scooter(7L, "Standard", 1L, status);
-        when(scooters.findById(7L)).thenReturn(Optional.of(scooter));
         when(scooters.findByIdForUpdate(7L)).thenReturn(Optional.of(scooter));
         return scooter;
     }
@@ -82,7 +95,7 @@ class TelemetryServiceTest {
 
     @Test
     void unknownScooterIsIgnored() {
-        when(scooters.findById(7L)).thenReturn(Optional.empty());
+        when(scooters.findByIdForUpdate(7L)).thenReturn(Optional.empty());
         service.record(reading(0, 40.612, PositionStatus.AT_HUB));
         verifyNoInteractions(states);
     }
@@ -99,8 +112,16 @@ class TelemetryServiceTest {
         scooterIs(ScooterStatus.AVAILABLE);
         when(states.findById(7L)).thenReturn(Optional.empty());
         service.record(reading(0, 40.612, PositionStatus.AT_HUB));
-        verify(scooters, never()).findByIdForUpdate(any());
         verify(scooters, never()).save(any());
+    }
+
+    @Test
+    void readingLocksTheScooterBeforeCheckingItsStatus() {
+        scooterIs(ScooterStatus.AVAILABLE);
+        when(states.findById(7L)).thenReturn(Optional.empty());
+        service.record(faultReading());
+        verify(scooters, times(2)).findByIdForUpdate(7L);
+        verify(scooters, never()).findById(any());
     }
 
     @Test
@@ -174,13 +195,13 @@ class TelemetryServiceTest {
 
     @Test
     void ignoredReadingsAreNotSent() {
-        when(scooters.findById(7L)).thenReturn(Optional.empty());
+        when(scooters.findByIdForUpdate(7L)).thenReturn(Optional.empty());
         service.record(reading(0, 40.612, PositionStatus.AT_HUB));
         verifyNoInteractions(sse);
     }
 
     @Test
-    void faultEventIsSentOnlyWhenTheStatusChanges() {
+    void faultEventIsSentOnlyWhenSomethingChanges() {
         scooterIs(ScooterStatus.AVAILABLE);
         when(states.findById(7L)).thenReturn(Optional.empty());
         service.recordFault(7L);
@@ -188,5 +209,30 @@ class TelemetryServiceTest {
         ArgumentCaptor<Scooter> sent = ArgumentCaptor.forClass(Scooter.class);
         verify(sse, times(1)).publish(sent.capture(), isNull());
         assertThat(sent.getValue().getStatus()).isEqualTo(ScooterStatus.MAINTENANCE);
+    }
+
+    @Test
+    void faultEventDuringARideKeepsTheScooterInUseAndStoresTheFault() {
+        Scooter scooter = scooterIs(ScooterStatus.IN_USE);
+        ScooterState state = new ScooterState(reading(0, 40.612, PositionStatus.MOVING), NOW);
+        when(states.findById(7L)).thenReturn(Optional.of(state));
+        service.recordFault(7L);
+        assertThat(scooter.getStatus()).isEqualTo(ScooterStatus.IN_USE);
+        verify(scooters, never()).save(any());
+        verify(states).save(state);
+        assertThat(state.isFault()).isTrue();
+    }
+
+    @Test
+    void faultEventDuringARideIsSentToTheLiveDashboard() {
+        scooterIs(ScooterStatus.IN_USE);
+        ScooterState state = new ScooterState(reading(0, 40.612, PositionStatus.MOVING), NOW);
+        when(states.findById(7L)).thenReturn(Optional.of(state));
+        service.recordFault(7L);
+        service.recordFault(7L);
+        ArgumentCaptor<Scooter> sent = ArgumentCaptor.forClass(Scooter.class);
+        verify(sse, times(1)).publish(sent.capture(), eq(state));
+        assertThat(sent.getValue().getStatus()).isEqualTo(ScooterStatus.IN_USE);
+        assertThat(state.isFault()).isTrue();
     }
 }

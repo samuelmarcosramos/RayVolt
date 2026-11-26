@@ -66,7 +66,7 @@ A story is done only when all of these are true:
 2. Every acceptance criterion has at least one automated test (any level), listed in the PR's AC → test table. For core stories the AC are Gherkin scenarios automated with Cucumber.
 3. Each behaviour is tested at the right level (see section 4).
 4. CI is green: build and all tests pass.
-5. The SonarQube quality gate passes (coverage on new code >= 75%, no new issues, security hotspots reviewed).
+5. The SonarCloud quality gate (Sonar way) passes: coverage on new code >= 80%, duplicated lines on new code <= 3%, A ratings on new code, security hotspots reviewed.
 6. At least 1 teammate who is not the author approved the PR. AI review findings are answered (accepted or rejected, with the reason).
 7. No secrets, credentials or personal data; only synthetic test data.
 8. Docs are updated: API docs if an endpoint changed, this file / the QA Manual if a rule changed.

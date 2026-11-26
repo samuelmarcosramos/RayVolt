@@ -55,4 +55,12 @@ class ScooterStateTest {
     void distanceBetweenTwoValdrenHubs() {
         assertThat(ScooterState.distanceKm(40.6120, -8.7175, 40.6010, -8.7140)).isCloseTo(1.258, within(0.01));
     }
+
+    @Test
+    void markFaultSetsTheFlagOnlyOnce() {
+        ScooterState state = new ScooterState(reading(0, 40.612, PositionStatus.MOVING), START);
+        assertThat(state.markFault()).isTrue();
+        assertThat(state.isFault()).isTrue();
+        assertThat(state.markFault()).isFalse();
+    }
 }
