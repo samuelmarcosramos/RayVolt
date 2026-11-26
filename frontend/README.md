@@ -14,6 +14,5 @@ The development server proxies `/api` requests to `http://localhost:8080`. The h
 ## Validate
 
 ```bash
-npm test
 npm run build
 ```
