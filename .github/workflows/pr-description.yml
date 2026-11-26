@@ -1,0 +1,47 @@
+name: PR description
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+    branches: [dev, main]
+
+permissions:
+  contents: read
+
+jobs:
+  pr-description:
+    if: github.event.pull_request.user.login != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check the PR title starts with the Jira key
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          if ! grep -qE '^PT-[0-9]+: ' <<< "$PR_TITLE"; then
+            echo "PR title must start with 'PT-<number>: ', got: $PR_TITLE"
+            exit 1
+          fi
+      - name: Check the PR description keeps the template sections
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          template=.github/pull_request_template.md
+          if [ ! -f "$template" ]; then
+            echo "PR template not found: $template"
+            exit 1
+          fi
+          headings=$(grep '^## ' "$template" | sed 's/[[:space:]]*$//') || [ $? -eq 1 ]
+          if [ -z "$headings" ]; then
+            echo "PR template has no '## ' sections: $template"
+            exit 1
+          fi
+          body=$(printf '%s\n' "$PR_BODY" | tr -d '\r' | sed 's/[[:space:]]*$//')
+          missing=0
+          while IFS= read -r heading; do
+            if ! grep -qxF -- "$heading" <<< "$body"; then
+              echo "Missing section: $heading"
+              missing=1
+            fi
+          done <<< "$headings"
+          exit $missing
