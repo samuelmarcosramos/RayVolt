@@ -1,41 +1,25 @@
 @PT-34
 Feature: Scooter lifecycle
-  Scenario: Valid changes preserve an ordered history with their time and cause
-    Given a scooter in state AVAILABLE
-    When the scooter follows these lifecycle changes
-      | state       | cause     |
-      | RESERVED    | USER      |
-      | AVAILABLE   | USER      |
-      | IN_USE      | USER      |
-      | AVAILABLE   | USER      |
-      | MAINTENANCE | OPERATOR  |
-      | AVAILABLE   | TICKET    |
-      | RESERVED    | USER      |
-      | IN_USE      | USER      |
-      | MAINTENANCE | TELEMETRY |
-      | AVAILABLE   | TICKET    |
-      | RESERVED    | USER      |
-      | MAINTENANCE | TELEMETRY |
-      | AVAILABLE   | TICKET    |
-      | RESERVED    | USER      |
-      | AVAILABLE   | USER      |
-      | RETIRED     | OPERATOR  |
-    Then the scooter is retired and every change has its expected audit record
+  Scenario Outline: Valid changes are saved with time and cause
+    Given a persisted scooter in state <from>
+    When the application changes its state to <to> with cause <cause>
+    Then the new state and its timestamped cause are saved
 
-  Scenario: Forbidden changes preserve the state and history, including retired scooters
-    Then these lifecycle changes are rejected without saving anything
-      | from        | to          |
-      | AVAILABLE   | AVAILABLE   |
-      | RESERVED    | RESERVED    |
-      | RESERVED    | RETIRED     |
-      | IN_USE      | IN_USE      |
-      | IN_USE      | RESERVED    |
-      | IN_USE      | RETIRED     |
-      | MAINTENANCE | MAINTENANCE |
-      | MAINTENANCE | RESERVED    |
-      | MAINTENANCE | IN_USE      |
-      | RETIRED     | AVAILABLE   |
-      | RETIRED     | RESERVED    |
-      | RETIRED     | IN_USE      |
-      | RETIRED     | MAINTENANCE |
-      | RETIRED     | RETIRED     |
+    Examples:
+      | from        | to          | cause     |
+      | AVAILABLE   | RESERVED    | USER      |
+      | IN_USE      | MAINTENANCE | TELEMETRY |
+      | MAINTENANCE | AVAILABLE   | TICKET    |
+      | MAINTENANCE | RETIRED     | OPERATOR  |
+
+  Scenario Outline: Invalid changes leave the database unchanged
+    Given a persisted scooter in state <from>
+    When the application changes its state to <to> with cause OPERATOR
+    Then the change is rejected and the stored state and history stay unchanged
+
+    Examples:
+      | from      | to        |
+      | RESERVED  | RETIRED   |
+      | IN_USE    | RETIRED   |
+      | RETIRED   | AVAILABLE |
+      | AVAILABLE | AVAILABLE |

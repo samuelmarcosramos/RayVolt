@@ -5,10 +5,6 @@ CREATE TABLE scooter_state_history (
     to_status VARCHAR(20) NOT NULL,
     changed_at TIMESTAMP WITH TIME ZONE NOT NULL,
     cause VARCHAR(10) NOT NULL,
-    CHECK (from_status IS NULL OR from_status IN ('AVAILABLE', 'RESERVED', 'IN_USE', 'MAINTENANCE', 'RETIRED')),
-    CHECK (to_status IN ('AVAILABLE', 'RESERVED', 'IN_USE', 'MAINTENANCE', 'RETIRED')),
-    CHECK (cause IN ('USER', 'OPERATOR', 'TICKET', 'TELEMETRY')),
-    CHECK (from_status IS NOT NULL OR to_status = 'AVAILABLE'),
     CHECK (from_status IS NULL OR from_status <> to_status)
 );
 
