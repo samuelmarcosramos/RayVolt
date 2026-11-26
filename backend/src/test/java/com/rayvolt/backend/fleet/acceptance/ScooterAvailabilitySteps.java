@@ -20,6 +20,8 @@ public class ScooterAvailabilitySteps {
 
     @Before
     void seedSyntheticFleet() {
+        jdbc.sql("DELETE FROM scooter_state_history").update();
+        jdbc.sql("DELETE FROM scooter_state").update();
         jdbc.sql("DELETE FROM scooters").update();
         jdbc.sql("DELETE FROM hubs").update();
         jdbc.sql("INSERT INTO hubs (id, name, capacity) VALUES "
