@@ -95,7 +95,13 @@ function Navbar() {
             </NavLink>
           </li>
           <li>
+            <NavLink to="/availability">Find a scooter</NavLink>
+          </li>
+          <li>
             <NavLink to="/fleet">Fleet</NavLink>
+          </li>
+          <li>
+            <NavLink to="/hubs">Hubs</NavLink>
           </li>
         </ul>
       </nav>

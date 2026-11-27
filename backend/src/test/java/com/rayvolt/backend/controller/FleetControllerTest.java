@@ -1,6 +1,11 @@
 package com.rayvolt.backend.controller;
 
-import com.rayvolt.backend.model.*;
+import com.rayvolt.backend.errors.BadRequestException;
+import com.rayvolt.backend.errors.ConflictException;
+import com.rayvolt.backend.errors.NotFoundException;
+import com.rayvolt.backend.model.Scooter;
+import com.rayvolt.backend.model.AvailableScooter;
+import com.rayvolt.backend.model.ScooterStatus;
 import com.rayvolt.backend.service.FleetService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -9,8 +14,6 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import java.util.List;
-import com.rayvolt.backend.errors.NotFoundException;
-import com.rayvolt.backend.errors.ConflictException;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -32,6 +35,52 @@ class FleetControllerTest {
         when(service.list()).thenReturn(List.of());
         mvc.perform(get("/api/scooters")).andExpect(status().isOk())
                 .andExpect(content().json("[]"));
+    }
+
+    @Test
+    @Tag("PT-14")
+    void availableScootersWithoutTypeReturnsServiceResults() throws Exception {
+        when(service.findAvailable(hub, null))
+                .thenReturn(List.of(new AvailableScooter(id, "Standard", hub, ScooterStatus.AVAILABLE, 10)));
+
+        mvc.perform(get("/api/scooters/available").param("hubId", hub.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(id.intValue()))
+                .andExpect(jsonPath("$[0].type").value("Standard"))
+                .andExpect(jsonPath("$[0].batteryPercent").value(10));
+    }
+
+    @Test
+    @Tag("PT-14")
+    void availableScootersPassOptionalType() throws Exception {
+        when(service.findAvailable(hub, "Patrol"))
+                .thenReturn(List.of(new AvailableScooter(id, "Patrol", hub, ScooterStatus.AVAILABLE, 75)));
+
+        mvc.perform(get("/api/scooters/available").param("hubId", hub.toString())
+                        .param("type", "Patrol"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].type").value("Patrol"))
+                .andExpect(jsonPath("$[0].batteryPercent").value(75));
+    }
+
+    @Test
+    @Tag("PT-14")
+    void availableScootersRejectUnknownType() throws Exception {
+        when(service.findAvailable(hub, "Foo")).thenThrow(new BadRequestException("Unsupported scooter type"));
+        mvc.perform(get("/api/scooters/available").param("hubId", hub.toString()).param("type", "Foo"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith("application/problem+json"));
+        verify(service).findAvailable(hub, "Foo");
+    }
+
+    @Test
+    @Tag("PT-14")
+    void availableScootersReturnUnknownBatteryWhenTelemetryIsMissing() throws Exception {
+        when(service.findAvailable(hub, null))
+                .thenReturn(List.of(new AvailableScooter(id, "Standard", hub, ScooterStatus.AVAILABLE, null)));
+        mvc.perform(get("/api/scooters/available").param("hubId", hub.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].batteryPercent").value(org.hamcrest.Matchers.nullValue()));
     }
 
     @Test

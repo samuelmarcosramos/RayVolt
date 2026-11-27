@@ -1,0 +1,10 @@
+{
+  "*HubControllerTest*": ["PT-33"],
+  "*HubServiceTest*": ["PT-33"],
+  "*HubDetailsTest*": ["PT-33"],
+  "*H2HubRepositoryTest*": ["PT-33"],
+  "*PostgresHubRepositoryIT*": ["PT-33"],
+  "*HubAcceptanceIT*": ["PT-33"],
+  "*HubPublicationTest*": ["PT-33"],
+  "*HubPageIT*": ["PT-33"]
+}

@@ -1,6 +1,8 @@
 import { Route, Routes } from 'react-router-dom'
+import ScooterAvailabilityPage from './components/availability/ScooterAvailabilityPage'
 import FleetPage from './components/fleet/FleetPage'
 import HomePage from './components/home/HomePage'
+import HubsPage from './components/hubs/HubsPage'
 import Navbar from './components/layout/Navbar'
 import './App.css'
 
@@ -11,7 +13,9 @@ function App() {
       <main className="content">
         <Routes>
           <Route path="/" element={<HomePage />} />
+          <Route path="/availability" element={<ScooterAvailabilityPage />} />
           <Route path="/fleet" element={<FleetPage />} />
+          <Route path="/hubs" element={<HubsPage />} />
         </Routes>
       </main>
       <footer className="footer">
