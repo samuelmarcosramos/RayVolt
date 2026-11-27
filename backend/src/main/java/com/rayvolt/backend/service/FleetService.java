@@ -4,6 +4,7 @@ import com.rayvolt.backend.errors.BadRequestException;
 import com.rayvolt.backend.errors.ConflictException;
 import com.rayvolt.backend.errors.NotFoundException;
 import com.rayvolt.backend.model.Hub;
+import com.rayvolt.backend.model.AvailableScooter;
 import com.rayvolt.backend.model.Scooter;
 import com.rayvolt.backend.model.ScooterStateChange;
 import com.rayvolt.backend.model.StateChangeCause;
@@ -16,10 +17,14 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.stream.Stream;
 
 @Service
 public class FleetService {
+    private static final int MINIMUM_BATTERY_PERCENT = 10;
+    private static final Set<String> SCOOTER_TYPES = Set.of("standard", "cargo", "patrol");
     private static final Logger LOG = LoggerFactory.getLogger(FleetService.class);
     private final ScooterRepository scooters;
     private final HubRepository hubs;
@@ -39,17 +44,18 @@ public class FleetService {
         return scooters.findAllByOrderByIdAsc();
     }
 
-    public List<Scooter> findAvailable(Long hubId, String type, int minimumBatteryPercent) {
+    public List<AvailableScooter> findAvailable(Long hubId, String type) {
         if (hubId == null || hubId <= 0) {
             throw new BadRequestException("A positive hub ID is required");
-        }
-        if (minimumBatteryPercent < 0 || minimumBatteryPercent > 100) {
-            throw new BadRequestException("Minimum battery percentage must be between 0 and 100");
         }
         if (type != null && type.isBlank()) {
             throw new BadRequestException("Scooter type must not be blank");
         }
-        return scooters.findAvailable(hubId, type == null ? null : type.strip(), minimumBatteryPercent);
+        String normalizedType = type == null ? null : type.strip();
+        if (normalizedType != null && !SCOOTER_TYPES.contains(normalizedType.toLowerCase(Locale.ROOT))) {
+            throw new BadRequestException("Unsupported scooter type");
+        }
+        return scooters.findAvailable(hubId, normalizedType == null ? "" : normalizedType, MINIMUM_BATTERY_PERCENT);
     }
 
     public List<Hub> listHubs() {

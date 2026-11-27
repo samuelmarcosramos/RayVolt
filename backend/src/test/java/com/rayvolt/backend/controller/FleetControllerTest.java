@@ -4,6 +4,7 @@ import com.rayvolt.backend.errors.BadRequestException;
 import com.rayvolt.backend.errors.ConflictException;
 import com.rayvolt.backend.errors.NotFoundException;
 import com.rayvolt.backend.model.Scooter;
+import com.rayvolt.backend.model.AvailableScooter;
 import com.rayvolt.backend.model.ScooterStatus;
 import com.rayvolt.backend.service.FleetService;
 import org.junit.jupiter.api.Tag;
@@ -39,10 +40,11 @@ class FleetControllerTest {
     @Test
     @Tag("PT-14")
     void availableScootersDefaultToTenPercentBattery() throws Exception {
-        when(service.findAvailable(hub, null, 10))
-                .thenReturn(List.of(new Scooter(id, "Standard", hub, ScooterStatus.AVAILABLE, 10)));
+        when(service.findAvailable(hub, null))
+                .thenReturn(List.of(new AvailableScooter(id, "Standard", hub, ScooterStatus.AVAILABLE, 10)));
 
-        mvc.perform(get("/api/scooters/available").param("hubId", hub.toString()))
+        mvc.perform(get("/api/scooters/available").param("hubId", hub.toString())
+                        .param("minBatteryPercent", "0"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(id.intValue()))
                 .andExpect(jsonPath("$[0].type").value("Standard"))
@@ -52,11 +54,11 @@ class FleetControllerTest {
     @Test
     @Tag("PT-14")
     void availableScootersPassOptionalTypeAndBatteryThreshold() throws Exception {
-        when(service.findAvailable(hub, "Patrol", 50))
-                .thenReturn(List.of(new Scooter(id, "Patrol", hub, ScooterStatus.AVAILABLE, 75)));
+        when(service.findAvailable(hub, "Patrol"))
+                .thenReturn(List.of(new AvailableScooter(id, "Patrol", hub, ScooterStatus.AVAILABLE, 75)));
 
         mvc.perform(get("/api/scooters/available").param("hubId", hub.toString())
-                        .param("type", "Patrol").param("minBatteryPercent", "50"))
+                        .param("type", "Patrol"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].type").value("Patrol"))
                 .andExpect(jsonPath("$[0].batteryPercent").value(75));
@@ -64,15 +66,22 @@ class FleetControllerTest {
 
     @Test
     @Tag("PT-14")
-    void availableScootersRejectInvalidThreshold() throws Exception {
-        when(service.findAvailable(hub, null, 101))
-                .thenThrow(new BadRequestException("Minimum battery percentage must be between 0 and 100"));
-
-        mvc.perform(get("/api/scooters/available").param("hubId", hub.toString())
-                        .param("minBatteryPercent", "101"))
+    void availableScootersRejectUnknownType() throws Exception {
+        when(service.findAvailable(hub, "Foo")).thenThrow(new BadRequestException("Unsupported scooter type"));
+        mvc.perform(get("/api/scooters/available").param("hubId", hub.toString()).param("type", "Foo"))
                 .andExpect(status().isBadRequest())
                 .andExpect(content().contentTypeCompatibleWith("application/problem+json"));
-        verify(service).findAvailable(hub, null, 101);
+        verify(service).findAvailable(hub, "Foo");
+    }
+
+    @Test
+    @Tag("PT-14")
+    void availableScootersReturnUnknownBatteryWhenTelemetryIsMissing() throws Exception {
+        when(service.findAvailable(hub, null))
+                .thenReturn(List.of(new AvailableScooter(id, "Standard", hub, ScooterStatus.AVAILABLE, null)));
+        mvc.perform(get("/api/scooters/available").param("hubId", hub.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].batteryPercent").value(org.hamcrest.Matchers.nullValue()));
     }
 
     @Test

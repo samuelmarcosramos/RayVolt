@@ -1,51 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
+import { getAvailableScooters, getHubs, type AvailableScooter, type Hub } from '../../api/availabilityService'
 import './ScooterAvailabilityPage.css'
-
-type Hub = {
-  id: number
-  name: string
-}
-
-type Scooter = {
-  id: number
-  type: string
-  hubId: number
-  status: string
-  batteryPercent: number
-}
 
 type RequestState = 'idle' | 'loading' | 'ready' | 'error'
 
 const SCOOTER_TYPES = ['Standard', 'Cargo', 'Patrol']
 const DEFAULT_MINIMUM_BATTERY_PERCENT = 10
-
-function isHub(value: unknown): value is Hub {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'id' in value &&
-    typeof value.id === 'number' &&
-    'name' in value &&
-    typeof value.name === 'string'
-  )
-}
-
-function isScooter(value: unknown): value is Scooter {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'id' in value &&
-    typeof value.id === 'number' &&
-    'type' in value &&
-    typeof value.type === 'string' &&
-    'hubId' in value &&
-    typeof value.hubId === 'number' &&
-    'status' in value &&
-    typeof value.status === 'string' &&
-    'batteryPercent' in value &&
-    typeof value.batteryPercent === 'number'
-  )
-}
 
 function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === 'AbortError'
@@ -55,45 +15,20 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Unexpected service error.'
 }
 
-async function getJson<T>(
-  url: string,
-  signal: AbortSignal,
-  isExpectedData: (value: unknown) => value is T,
-): Promise<T> {
-  const response = await fetch(url, { signal })
-  if (!response.ok) {
-    throw new Error(`The service responded with HTTP ${response.status}.`)
-  }
-
-  const body: unknown = await response.json()
-  if (!isExpectedData(body)) {
-    throw new Error('The service returned an unexpected response.')
-  }
-  return body
-}
-
-function isHubList(value: unknown): value is Hub[] {
-  return Array.isArray(value) && value.every(isHub)
-}
-
-function isScooterList(value: unknown): value is Scooter[] {
-  return Array.isArray(value) && value.every(isScooter)
-}
-
 function ScooterAvailabilityPage() {
   const [hubs, setHubs] = useState<Hub[]>([])
   const [hubState, setHubState] = useState<RequestState>('loading')
   const [hubError, setHubError] = useState('')
   const [selectedHubId, setSelectedHubId] = useState('')
   const [selectedType, setSelectedType] = useState('')
-  const [scooters, setScooters] = useState<Scooter[]>([])
+  const [scooters, setScooters] = useState<AvailableScooter[]>([])
   const [searchState, setSearchState] = useState<RequestState>('idle')
   const [searchError, setSearchError] = useState('')
   const availabilityRequest = useRef<AbortController | null>(null)
 
   useEffect(() => {
     const controller = new AbortController()
-    void getJson('/api/hubs', controller.signal, isHubList)
+    void getHubs(controller.signal)
       .then((availableHubs) => {
         setHubs(availableHubs)
         setHubState('ready')
@@ -127,20 +62,8 @@ function ScooterAvailabilityPage() {
 
     const controller = new AbortController()
     availabilityRequest.current = controller
-    const parameters = new URLSearchParams({
-      hubId,
-      minBatteryPercent: String(DEFAULT_MINIMUM_BATTERY_PERCENT),
-    })
-    if (type) {
-      parameters.set('type', type)
-    }
-
     setSearchState('loading')
-    void getJson(
-      `/api/scooters/available?${parameters.toString()}`,
-      controller.signal,
-      isScooterList,
-    )
+    void getAvailableScooters(hubId, type, controller.signal)
       .then((availableScooters) => {
         setScooters(availableScooters)
         setSearchState('ready')
@@ -253,7 +176,9 @@ function ScooterAvailabilityPage() {
                   <span className="availability-scooter-id">Scooter #{scooter.id}</span>
                   <span className="availability-scooter-type">{scooter.type}</span>
                 </div>
-                <span className="availability-battery">{scooter.batteryPercent}%</span>
+                <span className="availability-battery">
+                  {scooter.batteryPercent === null ? 'Unknown' : `${scooter.batteryPercent}%`}
+                </span>
               </li>
             ))}
           </ul>

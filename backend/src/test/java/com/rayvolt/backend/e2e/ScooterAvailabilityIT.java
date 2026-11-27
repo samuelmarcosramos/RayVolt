@@ -59,6 +59,7 @@ class ScooterAvailabilityIT {
         Long belowThreshold = addScooter("Standard", 1, "AVAILABLE", 9);
         Long inUse = addScooter("Patrol", 1, "IN_USE", 90);
         Long otherHub = addScooter("Standard", 2, "AVAILABLE", 90);
+        Long unknown = addScooter("Cargo", 1, "AVAILABLE", null);
 
         page.navigate("http://localhost:" + port + "/");
         findAvailabilityPage(page);
@@ -67,7 +68,11 @@ class ScooterAvailabilityIT {
         Locator scooters = page.getByRole(AriaRole.LIST,
                 new Page.GetByRoleOptions().setName("Available scooters"));
         assertThat(scooters).containsText("#" + standard);
+        assertThat(scooters).containsText("Standard");
         assertThat(scooters).containsText("#" + patrol);
+        assertThat(scooters).containsText("Patrol");
+        assertThat(scooters).containsText("#" + unknown);
+        assertThat(scooters).containsText("Unknown");
         assertThat(scooters).not().containsText("#" + belowThreshold);
         assertThat(scooters).not().containsText("#" + inUse);
         assertThat(scooters).not().containsText("#" + otherHub);
@@ -97,14 +102,22 @@ class ScooterAvailabilityIT {
                 .click();
     }
 
-    private Long addScooter(String type, int hubId, String status, int batteryPercent) {
-        jdbc.sql("INSERT INTO scooters (type, hub_id, status, battery_percent) "
-                        + "VALUES (:type, :hubId, :status, :batteryPercent)")
+    private Long addScooter(String type, int hubId, String status, Integer batteryPercent) {
+        jdbc.sql("INSERT INTO scooters (type, hub_id, status) VALUES (:type, :hubId, :status)")
                 .param("type", type)
                 .param("hubId", hubId)
                 .param("status", status)
-                .param("batteryPercent", batteryPercent)
                 .update();
-        return jdbc.sql("SELECT MAX(id) FROM scooters").query(Long.class).single();
+        Long id = jdbc.sql("SELECT MAX(id) FROM scooters").query(Long.class).single();
+        if (batteryPercent != null) {
+            jdbc.sql("""
+                    INSERT INTO scooter_state
+                        (scooter_id, reading_at, received_at, battery, locked, speed_kmh, hub_id, lat, lon,
+                         position_status, fault, odometer_km)
+                    VALUES (:id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, :battery, false, 0, :hub, 0, 0,
+                            'AT_HUB', false, 0)
+                    """).param("id", id).param("battery", batteryPercent).param("hub", hubId).update();
+        }
+        return id;
     }
 }

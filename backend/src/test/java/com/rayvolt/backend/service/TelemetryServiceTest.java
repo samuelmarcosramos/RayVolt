@@ -69,7 +69,6 @@ class TelemetryServiceTest {
         assertThat(saved.getValue().getScooterId()).isEqualTo(7L);
         assertThat(saved.getValue().getReceivedAt()).isEqualTo(NOW);
         assertThat(saved.getValue().getBattery()).isEqualTo(80);
-        assertThat(scooter.getBatteryPercent()).isEqualTo(80);
     }
 
     @Test

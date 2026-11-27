@@ -53,7 +53,6 @@ public class TelemetryService {
         }
         states.save(state);
         Scooter scooter = active.get();
-        scooter.updateBatteryPercent(reading.battery());
         if (reading.fault()) {
             markFaulty(scooter);
         }

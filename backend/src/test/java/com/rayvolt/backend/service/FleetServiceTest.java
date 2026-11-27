@@ -5,6 +5,7 @@ import com.rayvolt.backend.errors.ConflictException;
 import com.rayvolt.backend.errors.NotFoundException;
 import com.rayvolt.backend.model.Hub;
 import com.rayvolt.backend.model.Scooter;
+import com.rayvolt.backend.model.AvailableScooter;
 import com.rayvolt.backend.model.ScooterStatus;
 import com.rayvolt.backend.repository.HubRepository;
 import com.rayvolt.backend.repository.ScooterRepository;
@@ -111,20 +112,19 @@ class FleetServiceTest {
     @Test
     @Tag("PT-14")
     void availableScooterSearchPassesTrimmedTypeAndInclusiveBatteryThreshold() {
-        Scooter available = new Scooter(7L, "Patrol", hub, ScooterStatus.AVAILABLE, 50);
-        when(scooters.findAvailable(hub, "Patrol", 50)).thenReturn(List.of(available));
+        AvailableScooter available = new AvailableScooter(7L, "Patrol", hub, ScooterStatus.AVAILABLE, 50);
+        when(scooters.findAvailable(hub, "Patrol", 10)).thenReturn(List.of(available));
 
-        assertThat(service.findAvailable(hub, " Patrol ", 50)).containsExactly(available);
-        verify(scooters).findAvailable(hub, "Patrol", 50);
+        assertThat(service.findAvailable(hub, " Patrol ")).containsExactly(available);
+        verify(scooters).findAvailable(hub, "Patrol", 10);
     }
 
     @Test
     @Tag("PT-14")
     void availableScooterSearchRejectsInvalidFilters() {
-        assertThatThrownBy(() -> service.findAvailable(0L, null, 10)).isInstanceOf(BadRequestException.class);
-        assertThatThrownBy(() -> service.findAvailable(hub, null, -1)).isInstanceOf(BadRequestException.class);
-        assertThatThrownBy(() -> service.findAvailable(hub, null, 101)).isInstanceOf(BadRequestException.class);
-        assertThatThrownBy(() -> service.findAvailable(hub, " ", 10)).isInstanceOf(BadRequestException.class);
+        assertThatThrownBy(() -> service.findAvailable(0L, null)).isInstanceOf(BadRequestException.class);
+        assertThatThrownBy(() -> service.findAvailable(hub, " ")).isInstanceOf(BadRequestException.class);
+        assertThatThrownBy(() -> service.findAvailable(hub, "Foo")).isInstanceOf(BadRequestException.class);
         verifyNoInteractions(scooters);
     }
 

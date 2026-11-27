@@ -28,14 +28,13 @@ public class ScooterLifecycleSteps {
         jdbc.sql("DELETE FROM scooter_state_history").update();
         jdbc.sql("DELETE FROM scooter_state").update();
         jdbc.sql("DELETE FROM scooters").update();
-        jdbc.sql("DELETE FROM hubs").update();
-        jdbc.sql("INSERT INTO hubs (id, name, capacity) VALUES (1, 'Synthetic hub', 2)").update();
     }
 
     @Given("a persisted scooter in state {word}")
     public void initialState(String value) {
         ScooterStatus state = ScooterStatus.valueOf(value);
-        scooterId = service.add("Standard", 1L).getId();
+        Long mainHubId = jdbc.sql("SELECT id FROM hubs WHERE name = 'Main Gate'").query(Long.class).single();
+        scooterId = service.add("Standard", mainHubId).getId();
         if (state != ScooterStatus.AVAILABLE) {
             service.changeStatus(scooterId, state, StateChangeCause.OPERATOR);
         }

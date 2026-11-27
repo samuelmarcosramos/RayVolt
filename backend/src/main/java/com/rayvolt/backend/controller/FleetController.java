@@ -2,6 +2,7 @@ package com.rayvolt.backend.controller;
 
 import com.rayvolt.backend.errors.BadRequestException;
 import com.rayvolt.backend.model.Scooter;
+import com.rayvolt.backend.model.AvailableScooter;
 import com.rayvolt.backend.service.FleetService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -27,17 +28,15 @@ public class FleetController {
 
     @GetMapping("/available")
     @Operation(summary = "Find available scooters at a hub",
-            description = "Returns only AVAILABLE scooters at the selected hub with at least the requested battery. "
-                    + "The minimum battery is inclusive and defaults to 10 percent; type is optional.")
+            description = "Returns only AVAILABLE scooters at the selected hub with at least 10 percent battery. "
+                    + "The inclusive threshold is a server-side business rule; type is optional.")
     // TODO(PT-9/PT-10/PT-11/PT-24): filter by the authenticated user's allowed scooter types.
-    public List<Scooter> findAvailable(
+    public List<AvailableScooter> findAvailable(
             @Parameter(description = "Positive ID of the selected hub")
             @RequestParam Long hubId,
             @Parameter(description = "Optional scooter type: Standard, Cargo, or Patrol")
-            @RequestParam(required = false) String type,
-            @Parameter(description = "Inclusive battery threshold from 0 to 100; defaults to 10")
-            @RequestParam(defaultValue = "10") int minBatteryPercent) {
-        return service.findAvailable(hubId, type, minBatteryPercent);
+            @RequestParam(required = false) String type) {
+        return service.findAvailable(hubId, type);
     }
 
     @GetMapping("/{id}")

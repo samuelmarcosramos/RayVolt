@@ -2,7 +2,6 @@ package com.rayvolt.backend.model;
 
 import com.rayvolt.backend.errors.BadRequestException;
 import com.rayvolt.backend.errors.ConflictException;
-import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -22,30 +21,21 @@ public class Scooter {
     private Long hubId;
     @Enumerated(EnumType.STRING)
     private ScooterStatus status;
-    @Column(name = "battery_percent", nullable = false)
-    private int batteryPercent = 100;
-
     protected Scooter() {
     }
 
     public Scooter(String type, Long hubId) {
-        this(null, type, hubId, ScooterStatus.AVAILABLE, 100);
+        this(null, type, hubId, ScooterStatus.AVAILABLE);
     }
 
     public Scooter(Long id, String type, Long hubId, ScooterStatus status) {
-        this(id, type, hubId, status, 100);
-    }
-
-    public Scooter(Long id, String type, Long hubId, ScooterStatus status, int batteryPercent) {
         if (id != null && id <= 0) {
             throw new BadRequestException("Scooter and hub IDs must be positive numbers");
         }
-        requireBatteryPercent(batteryPercent);
         this.id = id;
         this.type = requireType(type);
         this.hubId = requireHub(hubId);
         this.status = Objects.requireNonNull(status, "Status is required");
-        this.batteryPercent = batteryPercent;
     }
 
     public Long getId() {
@@ -62,15 +52,6 @@ public class Scooter {
 
     public ScooterStatus getStatus() {
         return status;
-    }
-
-    public int getBatteryPercent() {
-        return batteryPercent;
-    }
-
-    public void updateBatteryPercent(int batteryPercent) {
-        requireBatteryPercent(batteryPercent);
-        this.batteryPercent = batteryPercent;
     }
 
     public void edit(String type, Long hubId) {
@@ -116,12 +97,6 @@ public class Scooter {
             throw new BadRequestException("Scooter and hub IDs must be positive numbers");
         }
         return hubId;
-    }
-
-    private static void requireBatteryPercent(int batteryPercent) {
-        if (batteryPercent < 0 || batteryPercent > 100) {
-            throw new BadRequestException("Battery percentage must be between 0 and 100");
-        }
     }
 
     @Override

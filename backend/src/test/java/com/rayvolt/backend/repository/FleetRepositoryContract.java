@@ -106,18 +106,42 @@ abstract class FleetRepositoryContract {
         Scooter otherType = service.add("Cargo", hub);
         Scooter inUse = service.add("Patrol", hub);
         Scooter otherHubScooter = service.add("Standard", otherHub);
-        jdbc.sql("UPDATE scooters SET battery_percent = 10 WHERE id = :id").param("id", atThreshold.getId()).update();
-        jdbc.sql("UPDATE scooters SET battery_percent = 9 WHERE id = :id").param("id", belowThreshold.getId()).update();
-        jdbc.sql("UPDATE scooters SET battery_percent = 80 WHERE id = :id").param("id", otherType.getId()).update();
-        jdbc.sql("UPDATE scooters SET battery_percent = 80, status = 'IN_USE' WHERE id = :id")
+        addTelemetry(atThreshold, 10);
+        addTelemetry(belowThreshold, 9);
+        addTelemetry(otherType, 80);
+        addTelemetry(inUse, 80);
+        addTelemetry(otherHubScooter, 80);
+        jdbc.sql("UPDATE scooters SET status = 'IN_USE' WHERE id = :id")
                 .param("id", inUse.getId()).update();
 
-        assertThat(service.findAvailable(hub, "Standard", 10))
-                .extracting(Scooter::getId).containsExactly(atThreshold.getId());
-        assertThat(service.findAvailable(hub, null, 10))
-                .extracting(Scooter::getId).containsExactlyInAnyOrder(atThreshold.getId(), otherType.getId());
-        assertThat(service.findAvailable(otherHub, null, 10))
-                .extracting(Scooter::getId).containsExactly(otherHubScooter.getId());
+        assertThat(service.findAvailable(hub, "Standard"))
+                .extracting(AvailableScooter::id).containsExactly(atThreshold.getId());
+        assertThat(service.findAvailable(hub, null))
+                .extracting(AvailableScooter::id).containsExactlyInAnyOrder(atThreshold.getId(), otherType.getId());
+        assertThat(service.findAvailable(otherHub, null))
+                .extracting(AvailableScooter::id).containsExactly(otherHubScooter.getId());
+    }
+
+    @Test
+    @Tag("PT-14")
+    void availableScooterWithoutTelemetryHasUnknownBattery() {
+        Scooter withoutTelemetry = service.add("Standard", hub);
+
+        assertThat(service.findAvailable(hub, null))
+                .filteredOn(scooter -> scooter.id().equals(withoutTelemetry.getId()))
+                .singleElement()
+                .satisfies(scooter -> assertThat(scooter.batteryPercent()).isNull());
+    }
+
+    private void addTelemetry(Scooter scooter, int battery) {
+        jdbc.sql("""
+                INSERT INTO scooter_state
+                    (scooter_id, reading_at, received_at, battery, locked, speed_kmh, hub_id, lat, lon,
+                     position_status, fault, odometer_km)
+                VALUES (:id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, :battery, false, 0, :hub, 0, 0,
+                        'AT_HUB', false, 0)
+                """)
+                .param("id", scooter.getId()).param("battery", battery).param("hub", scooter.getHubId()).update();
     }
 
     @Test

@@ -13,8 +13,8 @@ function HomePage() {
         Shared e-scooters for the people who keep Valdren Works moving.
         Find a ride, get where you need to be, and leave the fleet to us.
       </p>
-      <Link className="button" to="/availability">
-        Find a scooter
+      <Link className="button" to="/fleet">
+        See the fleet
       </Link>
     </section>
   )
