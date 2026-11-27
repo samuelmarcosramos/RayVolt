@@ -90,6 +90,7 @@ class XrayReportsTest(unittest.TestCase):
             report.write_text('<testsuites/>')
             self.assertEqual(upload(report), 'PT-501')
         auth, request = post.call_args_list
+        self.assertEqual(request.kwargs, {'timeout': 600})
         self.assertEqual(auth.args[0], '/authenticate')
         self.assertEqual(json.loads(auth.args[1]), {'client_id': 'synthetic-id', 'client_secret': 'synthetic-secret'})
         self.assertEqual(request.args, ('/import/execution/junit?projectKey=PT&testPlanKey=PT-500', b'<testsuites/>', 'text/xml', 'synthetic-token'))

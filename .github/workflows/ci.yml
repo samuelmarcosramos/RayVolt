@@ -137,6 +137,7 @@ jobs:
       - run: python -m unittest discover -s scripts/tests -v
 
   xray:
+    timeout-minutes: 15
     needs: [backend, e2e, simulator, xray-tools]
     if: ${{ !cancelled() && github.event_name != 'pull_request' && needs.xray-tools.result == 'success' }}
     runs-on: ubuntu-latest

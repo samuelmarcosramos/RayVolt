@@ -10,13 +10,13 @@ import urllib.request
 BASE_URL = 'https://xray.cloud.getxray.app/api/v2'
 
 
-def post(path, body, content_type, token=None):
+def post(path, body, content_type, token=None, timeout=120):
     headers = {'Content-Type': content_type}
     if token:
         headers['Authorization'] = f'Bearer {token}'
     request = urllib.request.Request(BASE_URL + path, data=body, headers=headers, method='POST')
     try:
-        with urllib.request.urlopen(request, timeout=120) as response:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
             return json.load(response)
     except urllib.error.HTTPError as error:
         detail = error.read().decode('utf-8', errors='replace')
@@ -40,7 +40,7 @@ def upload(report):
     for variable, parameter in [('XRAY_TEST_PLAN_KEY', 'testPlanKey'), ('XRAY_TEST_EXEC_KEY', 'testExecKey')]:
         if os.environ.get(variable):
             query[parameter] = os.environ[variable]
-    result = post('/import/execution/junit?' + urllib.parse.urlencode(query), report.read_bytes(), 'text/xml', token)
+    result = post('/import/execution/junit?' + urllib.parse.urlencode(query), report.read_bytes(), 'text/xml', token, timeout=600)
     execution = result.get('testExecIssue', {}).get('key') or result.get('key')
     if not execution:
         raise ValueError('Xray response contained no Test Execution key')
