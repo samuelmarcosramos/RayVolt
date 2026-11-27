@@ -3,16 +3,38 @@ package com.rayvolt.backend.acceptance;
 import com.rayvolt.backend.errors.*;
 import com.rayvolt.backend.model.*;
 import com.rayvolt.backend.service.*;
+import io.cucumber.java.Before;
 import io.cucumber.java.en.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import static org.assertj.core.api.Assertions.*;
 
 public class HubSteps {
     @Autowired HubService hubs;
     @Autowired FleetService fleet;
+    @Autowired JdbcClient jdbc;
     private Long hubId;
     private Long scooterId;
     private RuntimeException rejection;
+
+    @Before("@PT-33")
+    public void cleanManagedHubFixtures() {
+        jdbc.sql("""
+                DELETE FROM scooter_state_history
+                WHERE scooter_id IN (SELECT id FROM scooters
+                    WHERE hub_id IN (SELECT id FROM hubs WHERE name IN ('North Gate', 'South Gate')))
+                """).update();
+        jdbc.sql("""
+                DELETE FROM scooter_state
+                WHERE scooter_id IN (SELECT id FROM scooters
+                    WHERE hub_id IN (SELECT id FROM hubs WHERE name IN ('North Gate', 'South Gate')))
+                """).update();
+        jdbc.sql("""
+                DELETE FROM scooters
+                WHERE hub_id IN (SELECT id FROM hubs WHERE name IN ('North Gate', 'South Gate'))
+                """).update();
+        jdbc.sql("DELETE FROM hubs WHERE name IN ('North Gate', 'South Gate')").update();
+    }
 
     @When("an operator adds hub {string} in department {string} with capacity {int} at {double}, {double}")
     public void add(String name, String department, int capacity, double lat, double lon) {
