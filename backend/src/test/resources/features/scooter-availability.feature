@@ -3,6 +3,7 @@
 #    Each scooter shows its id, type and battery %.
 #    Only scooters that are available, have at least the minimum battery (10% by default) and are allowed for the user's role are shown.
 #    If none match, the page shows "No scooters available at this hub".
+# Role-based filtering is deferred until PT-9, PT-10, PT-11, and PT-24 implement authenticated user roles.
 
 @PT-14
 Feature: Find available scooters at a hub

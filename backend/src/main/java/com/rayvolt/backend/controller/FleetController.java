@@ -29,6 +29,7 @@ public class FleetController {
     @Operation(summary = "Find available scooters at a hub",
             description = "Returns only AVAILABLE scooters at the selected hub with at least the requested battery. "
                     + "The minimum battery is inclusive and defaults to 10 percent; type is optional.")
+    // TODO(PT-9/PT-10/PT-11/PT-24): filter by the authenticated user's allowed scooter types.
     public List<Scooter> findAvailable(
             @Parameter(description = "Positive ID of the selected hub")
             @RequestParam Long hubId,
