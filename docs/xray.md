@@ -17,11 +17,15 @@ pytest JUnit reports. The final `xray` job waits for all three producers and the
 one JUnit import creates one Test Execution per workflow run. Retrying the upload
 job can create another execution, so check Xray before retrying a network timeout.
 
-Uploads run on pushes to dev/main and the PT-82 verification branch, and on
-workflow_dispatch. Ordinary pull requests run tests and archive reports without
-using Xray credentials or creating executions. The PT-82 branch push allows a real
-pre-merge check because GitHub exposes manual dispatch only after the workflow is
-present on the default branch. The e2e job runs for these same upload events.
+Uploads run on pushes to dev/main and on workflow_dispatch. Ordinary pull requests
+run tests and archive reports without using Xray credentials or creating executions.
+The e2e job runs for the same upload events. Once the workflow is on the default
+branch, use Actions → CI → Run workflow for a manual check.
+
+The importer waits up to ten minutes for Xray to create/update automated Tests;
+the reporting job is limited to fifteen minutes. HTTP failures include the response
+body in the log, with credentials redacted. A client timeout can occur after Xray
+has created an execution: inspect Jira before retrying to avoid duplicate runs.
 
 Failed test outcomes are preserved and uploaded when reports exist; the original
 failed jobs keep CI red. Missing producer artifacts, empty reports, authentication

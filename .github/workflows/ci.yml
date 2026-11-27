@@ -5,7 +5,7 @@ on:
     branches: [dev, main]
   workflow_dispatch:
   push:
-    branches: [dev, main, chore/PT-82-xray-ci]
+    branches: [dev, main]
 
 jobs:
   backend:
