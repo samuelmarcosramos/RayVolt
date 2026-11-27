@@ -20,7 +20,7 @@ public class ScooterAvailabilitySteps {
     private Long mainHub;
     private Long productionHub;
 
-    @Before
+    @Before("@PT-14")
     void seedSyntheticFleet() {
         jdbc.sql("DELETE FROM scooter_state_history").update();
         jdbc.sql("DELETE FROM scooter_state").update();

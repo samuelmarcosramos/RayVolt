@@ -23,7 +23,7 @@ public class ScooterLifecycleSteps {
     private List<ScooterStateChange> before;
     private ConflictException rejection;
 
-    @Before
+    @Before("@PT-34")
     public void cleanDatabase() {
         jdbc.sql("DELETE FROM scooter_state_history").update();
         jdbc.sql("DELETE FROM scooter_state").update();
