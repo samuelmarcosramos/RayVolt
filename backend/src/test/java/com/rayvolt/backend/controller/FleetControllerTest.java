@@ -39,12 +39,11 @@ class FleetControllerTest {
 
     @Test
     @Tag("PT-14")
-    void availableScootersDefaultToTenPercentBattery() throws Exception {
+    void availableScootersWithoutTypeReturnsServiceResults() throws Exception {
         when(service.findAvailable(hub, null))
                 .thenReturn(List.of(new AvailableScooter(id, "Standard", hub, ScooterStatus.AVAILABLE, 10)));
 
-        mvc.perform(get("/api/scooters/available").param("hubId", hub.toString())
-                        .param("minBatteryPercent", "0"))
+        mvc.perform(get("/api/scooters/available").param("hubId", hub.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(id.intValue()))
                 .andExpect(jsonPath("$[0].type").value("Standard"))
@@ -53,7 +52,7 @@ class FleetControllerTest {
 
     @Test
     @Tag("PT-14")
-    void availableScootersPassOptionalTypeAndBatteryThreshold() throws Exception {
+    void availableScootersPassOptionalType() throws Exception {
         when(service.findAvailable(hub, "Patrol"))
                 .thenReturn(List.of(new AvailableScooter(id, "Patrol", hub, ScooterStatus.AVAILABLE, 75)));
 

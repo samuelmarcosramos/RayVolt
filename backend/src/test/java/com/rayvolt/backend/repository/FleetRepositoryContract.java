@@ -144,16 +144,6 @@ abstract class FleetRepositoryContract {
                 .param("id", scooter.getId()).param("battery", battery).param("hub", scooter.getHubId()).update();
     }
 
-    @Test
-    void hubSearchOptionsAreListedByNameAndId() {
-        jdbc.sql("INSERT INTO hubs (id, name, capacity) VALUES "
-                        + "(3, 'West Gate', 2), (2, 'East Gate', 2)")
-                .update();
-
-        assertThat(service.listHubs()).extracting(Hub::getName)
-                .containsExactly("East Gate", "Synthetic hub", "West Gate");
-    }
-
     @ParameterizedTest
     @CsvSource({"-90, -180", "90, 180", "0, 0"})
     void hubPositionAcceptsBoundaryCoordinates(double lat, double lon) {

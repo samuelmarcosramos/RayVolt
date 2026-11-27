@@ -209,22 +209,3 @@
   border-bottom-color: var(--primary);
   color: var(--primary);
 }
-
-@media (max-width: 640px) {
-  .navbar {
-    gap: 0.75rem;
-    padding: 1rem;
-  }
-
-  .brand-text {
-    display: none;
-  }
-
-  .nav-links {
-    gap: 0.75rem;
-  }
-
-  .nav-links a {
-    font-size: 0.8125rem;
-  }
-}

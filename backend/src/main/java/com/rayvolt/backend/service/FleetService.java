@@ -13,7 +13,6 @@ import com.rayvolt.backend.repository.HubRepository;
 import com.rayvolt.backend.repository.ScooterRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
@@ -56,10 +55,6 @@ public class FleetService {
             throw new BadRequestException("Unsupported scooter type");
         }
         return scooters.findAvailable(hubId, normalizedType == null ? "" : normalizedType, MINIMUM_BATTERY_PERCENT);
-    }
-
-    public List<Hub> listHubs() {
-        return hubs.findAll(Sort.by("name", "id"));
     }
 
     public Scooter get(Long id) {

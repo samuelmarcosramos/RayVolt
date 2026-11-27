@@ -61,7 +61,7 @@ class TelemetryServiceTest {
 
     @Test
     void firstReadingCreatesTheStateWithTheReceivedTime() {
-        Scooter scooter = scooterIs(ScooterStatus.AVAILABLE);
+        scooterIs(ScooterStatus.AVAILABLE);
         when(states.findById(7L)).thenReturn(Optional.empty());
         service.record(reading(0, 40.612, PositionStatus.MOVING));
         ArgumentCaptor<ScooterState> saved = ArgumentCaptor.forClass(ScooterState.class);

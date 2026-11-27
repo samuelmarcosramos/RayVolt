@@ -21,6 +21,7 @@ public class Scooter {
     private Long hubId;
     @Enumerated(EnumType.STRING)
     private ScooterStatus status;
+
     protected Scooter() {
     }
 
