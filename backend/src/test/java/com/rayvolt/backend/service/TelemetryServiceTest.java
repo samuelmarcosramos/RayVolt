@@ -2,7 +2,6 @@ package com.rayvolt.backend.service;
 
 import com.rayvolt.backend.model.PositionStatus;
 import com.rayvolt.backend.model.Scooter;
-import com.rayvolt.backend.model.ScooterLive;
 import com.rayvolt.backend.model.ScooterState;
 import com.rayvolt.backend.model.ScooterStatus;
 import com.rayvolt.backend.model.TelemetryReading;
@@ -21,6 +20,8 @@ import java.time.ZoneOffset;
 import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 
 @Tag("PT-46")
@@ -172,11 +173,13 @@ class TelemetryServiceTest {
 
     @Test
     void savedReadingIsSentToTheLiveDashboard() {
-        scooterIs(ScooterStatus.AVAILABLE);
+        Scooter scooter = scooterIs(ScooterStatus.AVAILABLE);
         when(states.findById(7L)).thenReturn(Optional.empty());
         service.record(reading(0, 40.612, PositionStatus.AT_HUB));
-        verify(sse).publish(new ScooterLive(7L, ScooterStatus.AVAILABLE, 80, 40.612, -8.7175, PositionStatus.AT_HUB,
-                false, NOW));
+        ArgumentCaptor<ScooterState> sent = ArgumentCaptor.forClass(ScooterState.class);
+        verify(sse).publish(eq(scooter), sent.capture());
+        assertThat(sent.getValue().getBattery()).isEqualTo(80);
+        assertThat(sent.getValue().getReceivedAt()).isEqualTo(NOW);
     }
 
     @Test
@@ -184,10 +187,11 @@ class TelemetryServiceTest {
         scooterIs(ScooterStatus.AVAILABLE);
         when(states.findById(7L)).thenReturn(Optional.empty());
         service.record(faultReading());
-        ArgumentCaptor<ScooterLive> sent = ArgumentCaptor.forClass(ScooterLive.class);
-        verify(sse).publish(sent.capture());
-        assertThat(sent.getValue().status()).isEqualTo(ScooterStatus.MAINTENANCE);
-        assertThat(sent.getValue().fault()).isTrue();
+        ArgumentCaptor<Scooter> scooter = ArgumentCaptor.forClass(Scooter.class);
+        ArgumentCaptor<ScooterState> state = ArgumentCaptor.forClass(ScooterState.class);
+        verify(sse).publish(scooter.capture(), state.capture());
+        assertThat(scooter.getValue().getStatus()).isEqualTo(ScooterStatus.MAINTENANCE);
+        assertThat(state.getValue().isFault()).isTrue();
     }
 
     @Test
@@ -203,10 +207,9 @@ class TelemetryServiceTest {
         when(states.findById(7L)).thenReturn(Optional.empty());
         service.recordFault(7L);
         service.recordFault(7L);
-        ArgumentCaptor<ScooterLive> sent = ArgumentCaptor.forClass(ScooterLive.class);
-        verify(sse, times(1)).publish(sent.capture());
-        assertThat(sent.getValue()).isEqualTo(new ScooterLive(7L, ScooterStatus.MAINTENANCE, null, null, null, null,
-                false, null));
+        ArgumentCaptor<Scooter> sent = ArgumentCaptor.forClass(Scooter.class);
+        verify(sse, times(1)).publish(sent.capture(), isNull());
+        assertThat(sent.getValue().getStatus()).isEqualTo(ScooterStatus.MAINTENANCE);
     }
 
     @Test
@@ -228,9 +231,9 @@ class TelemetryServiceTest {
         when(states.findById(7L)).thenReturn(Optional.of(state));
         service.recordFault(7L);
         service.recordFault(7L);
-        ArgumentCaptor<ScooterLive> sent = ArgumentCaptor.forClass(ScooterLive.class);
-        verify(sse, times(1)).publish(sent.capture());
-        assertThat(sent.getValue().status()).isEqualTo(ScooterStatus.IN_USE);
-        assertThat(sent.getValue().fault()).isTrue();
+        ArgumentCaptor<Scooter> sent = ArgumentCaptor.forClass(Scooter.class);
+        verify(sse, times(1)).publish(sent.capture(), eq(state));
+        assertThat(sent.getValue().getStatus()).isEqualTo(ScooterStatus.IN_USE);
+        assertThat(state.isFault()).isTrue();
     }
 }

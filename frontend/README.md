@@ -20,6 +20,5 @@ Battery percentage is persisted by the backend. The telemetry simulator is not y
 ## Validate
 
 ```bash
-npm test
 npm run build
 ```

@@ -24,7 +24,7 @@ class SseControllerTest {
     @MockitoBean private SseService service;
 
     private final ScooterLive live = new ScooterLive(7L, ScooterStatus.MAINTENANCE, 87, 40.61, -8.71,
-            PositionStatus.AT_HUB, true, Instant.parse("2026-11-24T10:00:05Z"));
+            PositionStatus.AT_HUB, "Main Gate", true, Instant.parse("2026-11-24T10:00:05Z"));
 
     @Test
     void stateOfAllScootersHasTheAgreedFields() throws Exception {
@@ -32,16 +32,17 @@ class SseControllerTest {
         mvc.perform(get("/api/scooters/state")).andExpect(status().isOk())
                 .andExpect(content().json("""
                         [{"scooterId": 7, "status": "MAINTENANCE", "battery": 87, "lat": 40.61, "lon": -8.71,
-                          "positionStatus": "AT_HUB", "fault": true, "lastSeen": "2026-11-24T10:00:05Z"}]""", true));
+                          "positionStatus": "AT_HUB", "hubName": "Main Gate", "fault": true, "lastSeen": "2026-11-24T10:00:05Z"}]""", true));
     }
 
     @Test
     void scooterWithoutTelemetryHasNullFields() throws Exception {
-        when(service.get(2L)).thenReturn(new ScooterLive(2L, ScooterStatus.AVAILABLE, null, null, null, null, false,
-                null));
+        when(service.get(2L)).thenReturn(new ScooterLive(2L, ScooterStatus.AVAILABLE, null, null, null, null, null,
+                false, null));
         mvc.perform(get("/api/scooters/2/state")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("AVAILABLE"))
                 .andExpect(jsonPath("$.battery").isEmpty())
+                .andExpect(jsonPath("$.hubName").isEmpty())
                 .andExpect(jsonPath("$.lastSeen").isEmpty());
     }
 

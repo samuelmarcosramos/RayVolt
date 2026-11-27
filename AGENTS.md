@@ -22,8 +22,10 @@ Backlog: Jira project `PT`. Every change belongs to a Jira item `PT-<n>`.
 
 ```
 backend/    ./mvnw test        # unit + slice tests, fast, no Docker
-            ./mvnw verify      # + integration tests (*IT: Testcontainers, Playwright) + JaCoCo report
-frontend/   npm ci && npm test && npm run build
+            ./mvnw verify      # + integration tests (*IT: Testcontainers) + JaCoCo report
+            ./mvnw -Pe2e verify  # Playwright E2E tests (e2e/), CI runs them only on push to dev/main
+                               # they need the frontend built first (frontend/: npm run build)
+frontend/   npm ci && npm run build
 simulator/  pip install -r requirements-dev.txt && pytest
 root        docker compose up --build   # whole system locally
 ```

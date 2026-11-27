@@ -1,7 +1,6 @@
 package com.rayvolt.backend.service;
 
 import com.rayvolt.backend.model.Scooter;
-import com.rayvolt.backend.model.ScooterLive;
 import com.rayvolt.backend.model.ScooterState;
 import com.rayvolt.backend.model.ScooterStatus;
 import com.rayvolt.backend.model.StateChangeCause;
@@ -58,8 +57,9 @@ public class TelemetryService {
         if (reading.fault()) {
             markFaulty(scooter);
         }
-        ScooterLive update = ScooterLive.of(scooter, state);
-        AfterCommit.run(() -> sse.publish(update));
+        Scooter changed = scooter;
+        ScooterState saved = state;
+        AfterCommit.run(() -> sse.publish(changed, saved));
     }
 
     @Transactional
@@ -78,8 +78,7 @@ public class TelemetryService {
             states.save(state);
         }
         if (statusChanged || flagChanged) {
-            ScooterLive update = ScooterLive.of(scooter, state);
-            AfterCommit.run(() -> sse.publish(update));
+            AfterCommit.run(() -> sse.publish(scooter, state));
         }
     }
 
