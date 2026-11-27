@@ -1,5 +1,5 @@
 # Build stage: build the static site with Vite
-FROM node:24-alpine AS build
+FROM node:26-alpine AS build
 WORKDIR /app
 
 # Install dependencies first so they are cached when only src changes
