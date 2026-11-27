@@ -1,0 +1,71 @@
+package com.rayvolt.backend.controller;
+
+import com.rayvolt.backend.errors.BadRequestException;
+import com.rayvolt.backend.model.Scooter;
+import com.rayvolt.backend.model.AvailableScooter;
+import com.rayvolt.backend.service.FleetService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import java.net.URI;
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/scooters")
+// TODO: restrict these operations to operators when the Users module provides authorization.
+public class FleetController {
+    private final FleetService service;
+
+    public FleetController(FleetService service) {
+        this.service = service;
+    }
+
+    @GetMapping
+    public List<Scooter> list() {
+        return service.list();
+    }
+
+    @GetMapping("/available")
+    @Operation(summary = "Find available scooters at a hub",
+            description = "Returns only AVAILABLE scooters at the selected hub with at least 10 percent battery. "
+                    + "The inclusive threshold is a server-side business rule; type is optional.")
+    // TODO(PT-9/PT-10/PT-11/PT-24): filter by the authenticated user's allowed scooter types.
+    public List<AvailableScooter> findAvailable(
+            @Parameter(description = "Positive ID of the selected hub")
+            @RequestParam Long hubId,
+            @Parameter(description = "Optional scooter type: Standard, Cargo, or Patrol")
+            @RequestParam(required = false) String type) {
+        return service.findAvailable(hubId, type);
+    }
+
+    @GetMapping("/{id}")
+    public Scooter get(@PathVariable Long id) {
+        return service.get(id);
+    }
+
+    @PostMapping
+    public ResponseEntity<Scooter> add(@RequestBody ScooterRequest request) {
+        Scooter scooter = service.add(request.type(), request.hubId());
+        return ResponseEntity.created(URI.create("/api/scooters/" + scooter.getId())).body(scooter);
+    }
+
+    @PutMapping("/{id}")
+    public Scooter edit(@PathVariable Long id, @RequestBody ScooterRequest request) {
+        return service.edit(id, request.type(), request.hubId());
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> retire(@PathVariable Long id) {
+        service.retire(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    public record ScooterRequest(String type, Long hubId) {
+        public ScooterRequest {
+            if (type == null || type.isBlank() || hubId == null || hubId <= 0) {
+                throw new BadRequestException("Scooter type and hub ID are required");
+            }
+        }
+    }
+}

@@ -22,9 +22,11 @@ Backlog: Jira project `PT`. Every change belongs to a Jira item `PT-<n>`.
 
 ```
 backend/    ./mvnw test        # unit + slice tests, fast, no Docker
-            ./mvnw verify      # + integration tests (*IT: Testcontainers, Playwright) + JaCoCo report
-frontend/   npm ci && npm test && npm run build
-simulator/  pip install -r requirements.txt && pytest
+            ./mvnw verify      # + integration tests (*IT: Testcontainers) + JaCoCo report
+            ./mvnw -Pe2e verify  # Playwright E2E tests (e2e/), CI runs them only on push to dev/main
+                               # they need the frontend built first (frontend/: npm run build)
+frontend/   npm ci && npm run build
+simulator/  pip install -r requirements-dev.txt && pytest
 root        docker compose up --build   # whole system locally
 ```
 
@@ -65,7 +67,7 @@ A story is done only when all of these are true:
 2. Every acceptance criterion has at least one automated test (any level), listed in the PR's AC → test table. For core stories the AC are Gherkin scenarios automated with Cucumber.
 3. Each behaviour is tested at the right level (see section 4).
 4. CI is green: build and all tests pass.
-5. The SonarQube quality gate passes (coverage on new code >= 75%, no new issues, security hotspots reviewed).
+5. The SonarCloud quality gate (Sonar way) passes: coverage on new code >= 80%, duplicated lines on new code <= 3%, A ratings on new code, security hotspots reviewed.
 6. At least 1 teammate who is not the author approved the PR. AI review findings are answered (accepted or rejected, with the reason).
 7. No secrets, credentials or personal data; only synthetic test data.
 8. Docs are updated: API docs if an endpoint changed, this file / the QA Manual if a rule changed.
@@ -78,6 +80,9 @@ A story is done only when all of these are true:
 - Follow the existing architecture and module responsibilities. Do not change architectural boundaries without justification
   (e.g. the backend talks to the simulator only through the MQTT broker, and only the MQTT adapter knows MQTT).
 - Do not add dependencies with known security vulnerabilities, and respect the dependency security checks in CI.
+- A PR description written by an agent follows `.github/pull_request_template.md`: it starts with the Jira item `PT-<n>`
+  and the AC → test table, with each acceptance criterion copied from Jira and the test that covers it.
+  If the item has no AC, the agent stops and asks instead of guessing.
 - Agents never merge. A human approves every pull request and is accountable for it.
 - Never send secrets, credentials or personal data to an AI service.
 - Every merged line must be explainable by a team member at a checkpoint.

@@ -1,24 +1,27 @@
-package com.rayvolt.backend;
+package com.rayvolt.backend.config;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(HealthController.class)
-class HealthControllerTest {
+@SpringBootTest
+@AutoConfigureMockMvc
+class ApiDocsTest {
 
     @Autowired
     private MockMvc mockMvc;
 
     @Test
-    void healthReturnsOk() throws Exception {
-        mockMvc.perform(get("/api/health"))
+    void openApiDocumentIsServedUnderApi() throws Exception {
+        mockMvc.perform(get("/api/docs/openapi"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("OK"));
+                .andExpect(jsonPath("$.info.title").value("RayVolt API"))
+                .andExpect(jsonPath("$.servers[0].url").value("/"));
     }
 }

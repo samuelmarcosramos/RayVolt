@@ -1,0 +1,14 @@
+CREATE TABLE scooter_state (
+    scooter_id BIGINT PRIMARY KEY REFERENCES scooters(id) ON DELETE CASCADE,
+    reading_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    received_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    battery INTEGER NOT NULL CHECK (battery BETWEEN 0 AND 100),
+    locked BOOLEAN NOT NULL,
+    speed_kmh DOUBLE PRECISION NOT NULL CHECK (speed_kmh >= 0),
+    hub_id BIGINT,
+    lat DOUBLE PRECISION NOT NULL CHECK (lat BETWEEN -90 AND 90),
+    lon DOUBLE PRECISION NOT NULL CHECK (lon BETWEEN -180 AND 180),
+    position_status VARCHAR(20) NOT NULL CHECK (position_status IN ('AT_HUB', 'MOVING', 'OUTSIDE_HUB')),
+    fault BOOLEAN NOT NULL,
+    odometer_km DOUBLE PRECISION NOT NULL DEFAULT 0 CHECK (odometer_km >= 0)
+);
