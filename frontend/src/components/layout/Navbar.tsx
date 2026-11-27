@@ -97,6 +97,9 @@ function Navbar() {
           <li>
             <NavLink to="/fleet">Fleet</NavLink>
           </li>
+          <li>
+            <NavLink to="/hubs">Hubs</NavLink>
+          </li>
         </ul>
       </nav>
       <button type="button" className="theme-toggle" aria-label={`Switch to ${nextTheme} theme`} onClick={toggleTheme}>

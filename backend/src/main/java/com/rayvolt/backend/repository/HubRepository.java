@@ -8,6 +8,10 @@ import org.springframework.data.jpa.repository.Query;
 import java.util.Optional;
 
 public interface HubRepository extends JpaRepository<Hub, Long> {
+    java.util.List<Hub> findAllByOrderByNameAsc();
+    boolean existsByNameAndIdNot(String name, Long id);
+    boolean existsByName(String name);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT h FROM Hub h WHERE h.id = :id")
     Optional<Hub> findByIdForUpdate(Long id);
