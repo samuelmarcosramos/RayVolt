@@ -1,3 +1,5 @@
+import io
+import urllib.error
 import json
 import os
 from pathlib import Path
@@ -6,7 +8,7 @@ import unittest
 from unittest.mock import patch
 import xml.etree.ElementTree as ET
 from scripts.xray_report import load_mappings, merge_reports
-from scripts.xray_upload import upload
+from scripts.xray_upload import post, upload
 
 
 class XrayReportsTest(unittest.TestCase):
@@ -56,6 +58,21 @@ class XrayReportsTest(unittest.TestCase):
     def test_empty_reports_fail(self):
         with self.assertRaisesRegex(ValueError, 'empty execution'):
             merge_reports([], {})
+
+    @patch.dict(os.environ, {'XRAY_CLIENT_SECRET': 'synthetic-secret'}, clear=True)
+    @patch('scripts.xray_upload.urllib.request.urlopen')
+    def test_import_error_reports_body_without_credentials(self, urlopen):
+        urlopen.side_effect = urllib.error.HTTPError(
+            'https://xray.cloud.getxray.app/api/v2/import/execution/junit?projectKey=PT',
+            400, 'Bad Request', {}, io.BytesIO(
+                b'{"error":"Missing Test Execution issue type", "debug":"synthetic-token synthetic-secret"}'))
+        with self.assertRaises(ValueError) as caught:
+            post('/import/execution/junit?projectKey=PT', b'<testsuites/>', 'text/xml', 'synthetic-token')
+        message = str(caught.exception)
+        self.assertIn('HTTP 400', message)
+        self.assertIn('Missing Test Execution issue type', message)
+        self.assertNotIn('synthetic-token', message)
+        self.assertNotIn('synthetic-secret', message)
 
     @patch.dict(os.environ, {}, clear=True)
     @patch('scripts.xray_upload.post')

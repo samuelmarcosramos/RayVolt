@@ -15,8 +15,18 @@ def post(path, body, content_type, token=None):
     if token:
         headers['Authorization'] = f'Bearer {token}'
     request = urllib.request.Request(BASE_URL + path, data=body, headers=headers, method='POST')
-    with urllib.request.urlopen(request, timeout=120) as response:
-        return json.load(response)
+    try:
+        with urllib.request.urlopen(request, timeout=120) as response:
+            return json.load(response)
+    except urllib.error.HTTPError as error:
+        detail = error.read().decode('utf-8', errors='replace')
+        secrets = [token, os.environ.get('XRAY_CLIENT_ID'), os.environ.get('XRAY_CLIENT_SECRET')]
+        for secret in secrets:
+            if secret and secret.strip():
+                detail = detail.replace(secret.strip(), '[REDACTED]')
+        endpoint = urllib.parse.urlparse(error.url).path
+        detail = '\n'.join('  ' + line for line in detail.splitlines())
+        raise ValueError(f'Xray {endpoint} failed with HTTP {error.code}. Response body:\n{detail}') from None
 
 
 def upload(report):
@@ -43,9 +53,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
     try:
         execution = upload(args.report)
-    except urllib.error.HTTPError as error:
-        endpoint = urllib.parse.urlparse(error.url).path
-        raise SystemExit(f'Xray {endpoint} failed with HTTP {error.code}; check API credentials and permissions') from None
     except (ValueError, OSError) as error:
         raise SystemExit(str(error)) from None
     print(f'Xray Test Execution: {execution}')
