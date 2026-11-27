@@ -1,16 +1,20 @@
 {
   "*FleetControllerTest*": [
-    "PT-32"
+    "PT-32",
+    "PT-14"
   ],
   "*FleetServiceTest*": [
-    "PT-32"
+    "PT-32",
+    "PT-14"
   ],
   "*H2FleetRepositoryTest*": [
-    "PT-32"
+    "PT-32",
+    "PT-14"
   ],
   "*PostgresFleetRepositoryIT*": [
     "PT-32",
-    "PT-34"
+    "PT-34",
+    "PT-14"
   ],
   "*ScooterLifecycle*": [
     "PT-34"
@@ -26,5 +30,8 @@
   ],
   "*FleetDashboardIT*": [
     "PT-46"
+  ],
+  "*ScooterAvailability*": [
+    "PT-14"
   ]
 }

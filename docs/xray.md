@@ -39,9 +39,18 @@ record the returned Test Execution key. Open that issue in Jira to inspect runs.
 ## Story links
 
 `scripts/xray-requirements.json` maps test class/report patterns to Jira requirements.
-The merger also loads `scripts/xray-*-requirements.json` extensions. Hub mappings
-are introduced by PT-33 in `scripts/xray-hub-requirements.json`, so either PR can
-merge first without including mappings for absent hub classes in PT-82.
+Every new test class needs a matching entry in `scripts/xray-requirements.json`,
+added in the same PR as the tests, or its story will not receive automatic coverage
+from this mapping. When an existing class gains tests for another story, add that
+story key to its existing mapping while preserving the previous keys. Include both
+H2 and PostgreSQL implementations when they inherit tests from a shared contract.
+For example, `*ScooterAvailability*` maps to PT-14, and the shared fleet classes map
+to PT-14 as well as their existing stories. These mappings apply to the whole class.
+
+The merger also loads `scripts/xray-*-requirements.json` extensions; an entry in
+one of those files satisfies the same rule. Hub mappings live in
+`scripts/xray-hub-requirements.json`. A Gherkin or JUnit tag alone does not replace
+these mappings for JUnit imports.
 
 The merged XML adds the enhanced JUnit testcase property `requirements`, for example
 `<property name="requirements" value="PT-34"/>`. Xray uses it to associate the
