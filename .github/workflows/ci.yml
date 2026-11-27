@@ -38,7 +38,7 @@ jobs:
 
       - name: Archive backend JUnit reports
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: junit-backend
           path: |
@@ -74,7 +74,7 @@ jobs:
 
       - name: Archive browser JUnit reports
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: junit-e2e
           path: backend/target/failsafe-reports/TEST-*.xml
@@ -111,7 +111,7 @@ jobs:
       - run: pytest --junitxml=reports/pytest.xml
       - name: Archive simulator JUnit reports
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: junit-simulator
           path: simulator/reports/pytest.xml
@@ -156,7 +156,7 @@ jobs:
             test -d "reports/raw/junit-$producer"
           done
           python scripts/xray_report.py --reports reports/raw --output reports/xray.xml
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: xray-report
           path: reports/xray.xml
