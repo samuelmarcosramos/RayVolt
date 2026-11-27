@@ -36,6 +36,7 @@ root        docker compose up --build   # whole system locally
 - Commit messages start with the key: `PT-<n>: what changed`.
 - Pull requests go into `dev`, with `PT-<n>` in the title. Never push directly to `dev` or `main`.
 - `dev` is merged into `main` at the end of each iteration and tagged (`iter1` … `iter5`, `final_v1`).
+- Every Jira item has a short description (what and why).
 
 ## 4. Test rules
 
@@ -68,11 +69,11 @@ A story is done only when all of these are true:
 3. Each behaviour is tested at the right level (see section 4).
 4. CI is green: build and all tests pass.
 5. The SonarCloud quality gate (Sonar way) passes: coverage on new code >= 80%, duplicated lines on new code <= 3%, A ratings on new code, security hotspots reviewed.
-6. At least 1 teammate who is not the author approved the PR. AI review findings are answered (accepted or rejected, with the reason).
+6. The PR has assignees (everyone who made commits) and at least 1 teammate who is not the author approved it. AI review findings are answered (accepted or rejected, with the reason).
 7. No secrets, credentials or personal data; only synthetic test data.
 8. Docs are updated: API docs if an endpoint changed, this file / the QA Manual if a rule changed.
 9. The change works with `docker compose up`.
-10. The Jira item is moved to Done after the merge.
+10. The assignee moves the Jira item to Done after the merge.
 
 ## 7. Rules for AI agents
 
@@ -84,6 +85,7 @@ A story is done only when all of these are true:
   and the AC → test table, with each acceptance criterion copied from Jira and the test that covers it.
   If the item has no AC, the agent stops and asks instead of guessing.
 - Agents never merge. A human approves every pull request and is accountable for it.
+- Agents fill in the PR description but never tick the Reviewer checklist. The human reviewer ticks it.
 - Never send secrets, credentials or personal data to an AI service.
 - Every merged line must be explainable by a team member at a checkpoint.
 - AI review findings on a PR are recorded as accepted or rejected, with the reason.
