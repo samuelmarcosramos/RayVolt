@@ -5,6 +5,7 @@ import com.rayvolt.backend.errors.ConflictException;
 import com.rayvolt.backend.errors.NotFoundException;
 import com.rayvolt.backend.model.Hub;
 import com.rayvolt.backend.model.Scooter;
+import com.rayvolt.backend.model.AvailableScooter;
 import com.rayvolt.backend.model.ScooterStatus;
 import com.rayvolt.backend.repository.HubRepository;
 import com.rayvolt.backend.repository.ScooterRepository;
@@ -14,6 +15,7 @@ import com.rayvolt.backend.model.StateChangeCause;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
 import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -105,6 +107,25 @@ class FleetServiceTest {
         when(scooters.findById(7L)).thenReturn(Optional.of(scooter));
         assertThat(service.get(7L)).isSameAs(scooter);
         assertThatThrownBy(() -> service.get(999L)).isInstanceOf(NotFoundException.class);
+    }
+
+    @Test
+    @Tag("PT-14")
+    void availableScooterSearchPassesTrimmedTypeAndInclusiveBatteryThreshold() {
+        AvailableScooter available = new AvailableScooter(7L, "Patrol", hub, ScooterStatus.AVAILABLE, 50);
+        when(scooters.findAvailable(hub, "Patrol", 10)).thenReturn(List.of(available));
+
+        assertThat(service.findAvailable(hub, " Patrol ")).containsExactly(available);
+        verify(scooters).findAvailable(hub, "Patrol", 10);
+    }
+
+    @Test
+    @Tag("PT-14")
+    void availableScooterSearchRejectsInvalidFilters() {
+        assertThatThrownBy(() -> service.findAvailable(0L, null)).isInstanceOf(BadRequestException.class);
+        assertThatThrownBy(() -> service.findAvailable(hub, " ")).isInstanceOf(BadRequestException.class);
+        assertThatThrownBy(() -> service.findAvailable(hub, "Foo")).isInstanceOf(BadRequestException.class);
+        verifyNoInteractions(scooters);
     }
 
     @Test
