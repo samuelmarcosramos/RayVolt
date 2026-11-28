@@ -60,6 +60,16 @@ root        docker compose up --build   # whole system locally
 - Small classes and methods, clear names over comments. Few, short comments only where the reason is not obvious.
 - Fix SonarQube issues on new code before asking for review.
 
+Frontend (`frontend/src/`):
+
+- Calls to the backend live only in `api/` (`<thing>Service.ts`), never inline `fetch` in a component.
+- One folder per feature in `components/` (`layout/`, `home/`, `fleet/`, ...), each with its own CSS file.
+- A component goes to `components/reusable/` only when it is used in more than one place. Before writing a new component, check if one in `reusable/` already does the job.
+- Do not split a page into many tiny files. A small part used once stays in its feature file.
+- Pure helpers (formatting, sorting, filtering) go in `utils/`.
+- Colours are CSS variables in `index.css`, named by purpose (`--primary`, `--surface`, `--danger`, ...), with a light and a dark theme. No hard-coded colours in components. `App.css` holds the app shell and styles shared by features.
+- Frontend behaviour is tested with Playwright browser tests in the backend (`e2e/`, section 4), not with frontend unit tests.
+
 ## 6. Definition of done
 
 A story is done only when all of these are true:
