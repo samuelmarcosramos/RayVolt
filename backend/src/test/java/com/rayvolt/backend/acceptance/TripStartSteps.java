@@ -22,6 +22,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 public class TripStartSteps {
+    @Autowired Clock clock;
     @Autowired JdbcClient jdbc;
     @Autowired MockMvc mvc;
     @Autowired TripStartService service;
@@ -41,6 +42,7 @@ public class TripStartSteps {
 
     @Before(order = -100)
     public void clearTripData() {
+        ((AdjustableClock) clock).set(NOW);
         for (String table : List.of("deposit_holds", "deposit_accounts", "trip_bookings", "trips",
                 "trip_riders", "trip_policy_types", "trip_policies")) {
             jdbc.sql("DELETE FROM " + table).update();

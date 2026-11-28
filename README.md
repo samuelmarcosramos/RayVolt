@@ -114,3 +114,38 @@ identity, 403 for missing/expired/disabled riders or policy restrictions, 404 fo
 unknown scooter, and 409 for unavailable scooters, low battery or a refused deposit.
 Run `cd backend && ./mvnw verify` for unit, HTTP and PostgreSQL Cucumber tests tagged
 `@PT-16`, including concurrent requests and deposit refusal.
+
+## Booking API (PT-15)
+
+`POST /api/bookings` accepts `{"scooterId": 7}` and returns HTTP 201 with `scooterId`,
+`riderId` and `expiresAt`. The authenticated principal identifies the rider, using the
+same contract as trip start. The server sets expiry to exactly ten minutes after
+creation. A rider may have only one active booking or trip. The scooter must be
+available, locked at its hub and eligible under the persisted account, type, hours
+and battery rules. Booking does not unlock the scooter or hold a deposit.
+
+`DELETE /api/bookings/{scooterId}` cancels the authenticated owner's current booking
+before expiry and returns HTTP 204. Cancellation is free and returns a reserved
+scooter to available. Another rider receives 403, an absent booking 404, and an
+expired booking 409. Invalid creation requests return 400, unauthenticated requests
+401, policy restrictions 403 and unavailable scooters or existing active use 409.
+
+Validity ends exactly at `expiresAt`; a booking is inactive at that instant. The
+expiry job checks persisted bookings every second by default, so the stored scooter
+state is released on the next sweep. A request to reserve that same scooter can
+also replace an expired booking immediately, without waiting for the job. The job
+catches up after an application restart and rechecks each booking under the scooter
+lock, in its own transaction. Delayed checks cannot delete a replacement booking or
+undo a trip that has consumed the booking. Expiry records the SYSTEM state-change
+cause. Cancellation and expiry preserve maintenance or retired states.
+
+The existing rider-then-scooter lock order also serializes booking against trip start.
+State changes publish fleet updates after commit. The expiry job is enabled by
+default; `rayvolt.bookings.expiry-enabled=false` disables it and
+`rayvolt.bookings.expiry-interval` changes the interval in milliseconds (default 1000).
+Tests disable background scheduling and advance an injected clock explicitly.
+
+Run `cd backend && ./mvnw verify` for the `@PT-15` Cucumber scenarios and unit/HTTP
+tests. They cover exact expiry boundaries, free cancellation, ownership, active-use
+limits, concurrent requests, delayed cleanup and maintenance after telemetry faults.
+This branch depends on PT-16's persisted riders, policies and reservation support.

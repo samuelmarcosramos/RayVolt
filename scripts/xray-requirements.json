@@ -44,9 +44,13 @@
     "PT-16"
   ],
   "*TripBookingTest*": [
-    "PT-16"
+    "PT-16",
+    "PT-15"
   ],
   "*DepositServiceTest*": [
     "PT-16"
+  ],
+  "*Booking*": [
+    "PT-15"
   ]
 }

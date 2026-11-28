@@ -23,7 +23,7 @@ public class LifecycleSpringConfiguration {
 
     @MockitoSpyBean CommandService commands;
     @TestBean private Clock clock;
-    static Clock clock() { return Clock.fixed(NOW, ZoneOffset.UTC); }
+    static Clock clock() { return new AdjustableClock(NOW, ZoneOffset.UTC); }
 
     @DynamicPropertySource
     static void database(DynamicPropertyRegistry registry) {
