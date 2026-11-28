@@ -15,7 +15,7 @@ The rules are in AGENTS.md sections 3 and 7. This file only gives the steps.
 ## Steps
 
 1. Read the changes: `git log --format='%h %s%n%b' origin/dev..HEAD` and `git diff origin/dev...HEAD`.
-2. Read `.github/pull_request_template.md` from `origin/dev` and keep **every `## ` section, with the exact heading**. The `pr-description` CI check fails if one is missing.
+2. Read `.github/pull_request_template.md` as it is on the branch (`HEAD`), because the CI check uses the template of the PR's own code, and keep **every `## ` section, with the exact heading**. The `pr-description` CI check fails if one is missing.
 3. Fill it:
    - **Title**: `PT-<n>: <what changed>`.
    - **Jira**: `PT-<n>`.
@@ -31,6 +31,7 @@ The rules are in AGENTS.md sections 3 and 7. This file only gives the steps.
 
 - Never run `gh pr create`, `gh pr edit` or comment. Give the text, the human opens the PR.
 - No AI co-author or "generated with" lines.
+- Write as the PR author, in the first person ("me", "I"). Never use a team member's name for the author.
 
 ## Output
 
