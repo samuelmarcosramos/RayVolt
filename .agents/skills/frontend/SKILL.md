@@ -1,6 +1,6 @@
 ---
 name: frontend
-description: Use for any change in RayVolt's frontend (React + TypeScript in frontend/src), to build a page or component or to check existing frontend code. Keeps the structure of AGENTS.md section 5 (api/ services, one folder per feature, reusable components only when reused, CSS variables) so the UI stays reusable without turning into many tiny files.
+description: Use for any change in RayVolt's frontend (React + TypeScript in frontend/src), to build a page or component or to check existing frontend code. Keeps the structure of AGENTS.md section 5 (api/ services, one folder per feature, reusable components only when reused) so the UI stays reusable without turning into many tiny files.
 ---
 
 # Build or check frontend code
@@ -19,7 +19,6 @@ The rules are in AGENTS.md section 5 ("Frontend"). Read them first. This file on
 ## Writing
 
 - Backend calls: add a function to the matching `api/<thing>Service.ts` (or a new service file), with a type for the response. Components call these functions, never `fetch` directly.
-- New colours: add a purpose-named variable in `index.css` for both themes, then use it.
 - Keep a page in one file with its CSS until a part is really used elsewhere.
 - Only user-facing text and labels that a Playwright test can find (`getByRole`, `getByLabel`, `getByText`).
 
