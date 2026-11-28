@@ -57,7 +57,7 @@ public class TripStartService {
         requireAvailable(scooter, riderId, now);
         ScooterState state = states.findById(scooterId)
                 .orElseThrow(() -> new ConflictException("Current scooter telemetry is required"));
-        requireAtHub(scooter, state);
+        state.requireReadyAtHub(scooter.getHubId());
         policy.requireAllowed(now, scooter.getType(), state.getBattery());
         if (trips.existsByScooterIdAndEndedAtIsNull(scooterId)) {
             throw new ConflictException("Scooter already has an active trip");
@@ -91,10 +91,4 @@ public class TripStartService {
         }
     }
 
-    private void requireAtHub(Scooter scooter, ScooterState state) {
-        if (state.getPositionStatus() != PositionStatus.AT_HUB || state.getHubId() == null
-                || !state.getHubId().equals(scooter.getHubId()) || state.isFault() || !state.isLocked()) {
-            throw new ConflictException("Scooter must be locked at its hub without a reported fault");
-        }
-    }
 }

@@ -1,6 +1,5 @@
 package com.rayvolt.backend.controller;
 
-import com.rayvolt.backend.errors.UnauthorizedException;
 import com.rayvolt.backend.model.Trip;
 import com.rayvolt.backend.service.TripStartService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -27,17 +26,7 @@ public class TripStartController {
             + "Returns 401 without authentication, 403 for account or policy restrictions, 404 for an "
             + "unknown scooter and 409 for unavailable scooters, low battery or a failed deposit.")
     public Trip start(Principal principal, @Valid @RequestBody StartRequest request) {
-        if (principal == null) {
-            throw new UnauthorizedException("Login is required to start a trip");
-        }
-        Long riderId;
-        try {
-            riderId = Long.valueOf(principal.getName());
-            if (riderId <= 0) throw new NumberFormatException();
-        } catch (NumberFormatException exception) {
-            throw new UnauthorizedException("Authenticated principal must identify a rider");
-        }
-        return service.start(riderId, request.scooterId());
+        return service.start(RiderIdentity.requireId(principal), request.scooterId());
     }
 
     public record StartRequest(@NotNull @Positive Long scooterId) { }

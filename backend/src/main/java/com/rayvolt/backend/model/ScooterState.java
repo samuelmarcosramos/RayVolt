@@ -1,5 +1,6 @@
 package com.rayvolt.backend.model;
 
+import com.rayvolt.backend.errors.ConflictException;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -33,6 +34,13 @@ public class ScooterState {
     public ScooterState(TelemetryReading reading, Instant receivedAt) {
         this.scooterId = reading.scooterId();
         copy(reading, receivedAt);
+    }
+
+    public void requireReadyAtHub(Long assignedHubId) {
+        if (positionStatus != PositionStatus.AT_HUB || hubId == null
+                || !hubId.equals(assignedHubId) || fault || !locked) {
+            throw new ConflictException("Scooter must be locked at its hub without a reported fault");
+        }
     }
 
     public boolean isNewer(TelemetryReading reading) {
