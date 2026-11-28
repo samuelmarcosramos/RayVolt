@@ -1,5 +1,5 @@
 package com.rayvolt.backend.model;
 
 public enum StateChangeCause {
-    USER, OPERATOR, TICKET, TELEMETRY
+    USER, OPERATOR, TICKET, TELEMETRY, SYSTEM
 }

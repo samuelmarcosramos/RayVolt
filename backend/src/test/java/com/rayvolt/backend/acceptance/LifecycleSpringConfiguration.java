@@ -1,6 +1,8 @@
 package com.rayvolt.backend.acceptance;
 
 import io.cucumber.spring.CucumberContextConfiguration;
+import com.rayvolt.backend.service.CommandService;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -19,8 +21,9 @@ public class LifecycleSpringConfiguration {
     private static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:18");
     static { POSTGRES.start(); }
 
+    @MockitoSpyBean CommandService commands;
     @TestBean private Clock clock;
-    static Clock clock() { return Clock.fixed(NOW, ZoneOffset.UTC); }
+    static Clock clock() { return new AdjustableClock(NOW, ZoneOffset.UTC); }
 
     @DynamicPropertySource
     static void database(DynamicPropertyRegistry registry) {
