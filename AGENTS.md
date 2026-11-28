@@ -15,6 +15,7 @@ All names are fictional.
 | `broker/` | MQTT broker config | Mosquitto |
 | `docs/` | Reports (PDF at each tag) | |
 | `.github/` | Workflows, PR template | GitHub Actions |
+| `.agents/skills/` | Agent skills (see section 8) | `SKILL.md` per skill |
 
 Backlog: Jira project `PT`. Every change belongs to a Jira item `PT-<n>`.
 
@@ -59,6 +60,16 @@ root        docker compose up --build   # whole system locally
 - Small classes and methods, clear names over comments. Few, short comments only where the reason is not obvious.
 - Fix SonarQube issues on new code before asking for review.
 
+Frontend (`frontend/src/`):
+
+- Calls to the backend live only in `api/` (`<thing>Service.ts`), never inline `fetch` in a component.
+- One folder per feature in `components/` (`layout/`, `home/`, `fleet/`, ...), each with its own CSS file.
+- A component goes to `components/reusable/` only when it is used in more than one place. Before writing a new component, check if one in `reusable/` already does the job.
+- Do not split a page into many tiny files. A small part used once stays in its feature file.
+- Pure helpers (formatting, sorting, filtering) go in `utils/`.
+- Colours are CSS variables in `index.css`, named by purpose (`--primary`, `--surface`, `--danger`, ...), with a light and a dark theme. `App.css` holds the app shell and styles shared by features.
+- Frontend behaviour is tested with Playwright browser tests in the backend (`e2e/`, section 4), not with frontend unit tests.
+
 ## 6. Definition of done
 
 A story is done only when all of these are true:
@@ -87,4 +98,45 @@ A story is done only when all of these are true:
 - Never send secrets, credentials or personal data to an AI service.
 - Every merged line must be explainable by a team member at a checkpoint.
 - AI review findings on a PR are recorded as accepted or rejected, with the reason.
+- Every PR fills the "AI use" section of the template: which tool, and what it did (code, tests, review, docs), or "none".
 - Follow this file. If a rule here seems wrong, say so in the PR instead of ignoring it.
+
+## 8. Agent skills
+
+Skills live in `.agents/skills/<name>/SKILL.md` (read by Codex and Copilot). `.claude/skills` is a link to the same folder for Claude Code.
+A skill only holds the steps of a workflow. The rules stay in this file and the skill points here instead of repeating them.
+
+| Skill | What it does | When |
+|---|---|---|
+| `implement-from-gherkin` | Reads the story's AC and `.feature` file, writes the production code and step definitions, stops before the PR | AI4 stories (implementer role) |
+| `write-tests` | Writes the tests for each AC at the right level (section 4) | AI4 stories (test author role), optional elsewhere |
+| `review-pr` | Checks a PR against the definition of done and the reviewer checklist, lists findings for a human to accept or reject | AI4 stories (reviewer role), optional elsewhere |
+| `frontend` | Builds or checks frontend code against the frontend structure: API calls in `src/api/`, one folder per feature with its own CSS, a component goes to `src/components/reusable/` only when it is used in more than one place | Any frontend change |
+| `pr-description` | Fills `.github/pull_request_template.md`, with the AC → test table copied from Jira | Any PR |
+| `dependabot-triage` | Reports a table of the open Dependabot PRs (update, kind, CI, tests run, verdict merge / close, reason) following the Dependabot merge rule in the QA Manual. Runs the tests of major updates itself | Weekly, when Dependabot PRs arrive |
+| `ai-log` | Reads the merged PRs and their "AI use" section and writes `docs/ai-log.md` (share of AI work, AI findings accepted / rejected, rework traced to AI) | At each iteration tag |
+
+Skills report and propose. They never merge, close or comment on a PR (section 7).
+
+## 9. Agent roles for AI4 stories
+
+AI4 stories (built from their specification by agents) use three agents with fixed roles. Each agent is a new session that does not see the previous one's chat,
+only what is in the branch. A human checks the work between every step. Other stories may use single skills but do not need this flow.
+
+| Role | Skill | May change | Must not change |
+|---|---|---|---|
+| Implementer | `implement-from-gherkin` | production code, step definitions | the `.feature` file, tests written by the test author |
+| Test author | `write-tests` | test files | production code (failing behaviour is reported, not fixed) |
+| Reviewer | `review-pr` | nothing | any file |
+
+Flow:
+
+1. A human writes the Gherkin `.feature` file from the Jira AC. Checkpoint: the scenarios match the AC.
+2. Implementer writes the code and commits `PT-<n>: ... (implementer)`, with a handoff note in the commit body: what was done, what is unsure, how to run it.
+   Checkpoint: a human reads the diff and runs the build.
+3. Test author reads only the AC, the `.feature` file and the handoff note, writes the tests and commits `PT-<n>: ... (test author)` with a handoff note.
+   If a test fails because of the code, the work goes back to step 2. Checkpoint: a human checks the tests can fail.
+4. A human opens the PR. Its description has an "Agent flow" part: each step with role, tool, commit and who approved the checkpoint.
+5. Reviewer lists findings: Copilot review on the PR, or the `review-pr` skill whose findings a human posts on the PR. Checkpoint: the human accepts or rejects each finding with the reason, a teammate approves and merges.
+
+
