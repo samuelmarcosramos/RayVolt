@@ -33,5 +33,20 @@
   ],
   "*ScooterAvailability*": [
     "PT-14"
+  ],
+  "*TripStart*": [
+    "PT-16"
+  ],
+  "*TripPolicyTest*": [
+    "PT-16"
+  ],
+  "*TripRiderTest*": [
+    "PT-16"
+  ],
+  "*TripBookingTest*": [
+    "PT-16"
+  ],
+  "*DepositServiceTest*": [
+    "PT-16"
   ]
 }

@@ -24,16 +24,17 @@ public class TripSteps {
 
     @Given("a persisted trip lasting {int} seconds ending {word} with damage {word}")
     public void trip(int seconds, String location, String damage) {
-        jdbc.sql("INSERT INTO hubs (id, name, capacity) VALUES (2, 'Return hub', 10)").update();
-        Scooter scooter = scooters.save(new Scooter("Standard", 1L));
+        Long startHub = jdbc.sql("SELECT id FROM hubs WHERE name = 'Main Gate'").query(Long.class).single();
+        Long endHub = jdbc.sql("SELECT id FROM hubs WHERE name = 'Production Hall'").query(Long.class).single();
+        Scooter scooter = scooters.save(new Scooter("Standard", startHub));
         scooter.changeStatus(ScooterStatus.IN_USE);
         scooters.save(scooter);
-        id = trips.save(new Trip(scooter.getId(), NOW.minusSeconds(seconds), 1L, 0,
+        id = trips.save(new Trip(scooter.getId(), NOW.minusSeconds(seconds), startHub, 0,
                 30, new BigDecimal("0.50"))).getId();
         boolean atHub = location.equals("at-hub");
         ScooterState state = new ScooterState(new TelemetryReading(scooter.getId(), NOW.minusSeconds(1),
                 80, false, 10, null, 40, -8, PositionStatus.MOVING, false), NOW.minusSeconds(1));
-        state.update(new TelemetryReading(scooter.getId(), NOW, 80, false, 0, atHub ? 2L : null,
+        state.update(new TelemetryReading(scooter.getId(), NOW, 80, false, 0, atHub ? endHub : null,
                 40.001, -8, atHub ? PositionStatus.AT_HUB : PositionStatus.OUTSIDE_HUB,
                 Boolean.parseBoolean(damage)), NOW);
         states.save(state);
