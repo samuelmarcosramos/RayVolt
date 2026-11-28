@@ -61,6 +61,10 @@ public class Scooter {
         this.hubId = requireHub(hubId);
     }
 
+    public void returnToHub(Long hubId) {
+        this.hubId = requireHub(hubId);
+    }
+
     public void retire() {
         changeStatus(ScooterStatus.RETIRED);
     }

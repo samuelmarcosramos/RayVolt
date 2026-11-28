@@ -39,3 +39,28 @@ Every member is also a developer.
 | Static analysis dashboard | not available yet |
 | Observability dashboard | not available yet |
 | Deployed application | not available yet |
+
+## End trip API (PT-17)
+
+`POST /api/trips/{id}/end` ends an existing active trip. No request body is needed:
+position, hub, fault and distance come from scooter telemetry. The response contains
+`endedAt`, `endHubId` (null outside a hub), `endLat`, `endLon`, `kmRidden`,
+`overtimeMinutes`, `overtimeCharge` and `noHubCharge` (EUR).
+Unknown trips return 404; repeated ends, unavailable ride telemetry and inconsistent
+scooter states return 409. Concurrent end requests are serialized per scooter.
+
+The scooter becomes available, or enters maintenance when telemetry reports a fault.
+At a hub its fleet hub is updated to the return hub. Outside a hub its last fleet hub
+is retained; telemetry continues to show its actual position. A LOCK command is sent
+through the existing command service after commit; physical lock confirmation arrives
+asynchronously through MQTT. A broker failure or timeout is logged by that service.
+
+Trips store the maximum duration and overtime rate supplied at start. Overtime applies
+per started minute after the maximum plus five minutes; exactly at the limit costs zero.
+Ending outside a hub adds EUR 5.00. Both charges can apply together. These amounts are
+recorded on the trip; payment collection belongs to the payments stories.
+
+PT-16 still needs to create trips and capture their initial odometer and applicable
+pricing. User authentication and trip ownership checks depend on the Users stories.
+The end operation is available in Swagger at `/api/docs`; the PT-17 Cucumber scenarios
+run with `cd backend && ./mvnw verify` against PostgreSQL.

@@ -25,6 +25,7 @@ public class ScooterLifecycleSteps {
 
     @Before("@PT-34")
     public void cleanDatabase() {
+        jdbc.sql("DELETE FROM trips").update();
         jdbc.sql("DELETE FROM scooter_state_history").update();
         jdbc.sql("DELETE FROM scooter_state").update();
         jdbc.sql("DELETE FROM scooters").update();
