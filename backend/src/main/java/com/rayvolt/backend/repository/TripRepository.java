@@ -8,6 +8,9 @@ import jakarta.persistence.LockModeType;
 import java.util.Optional;
 
 public interface TripRepository extends JpaRepository<Trip, Long> {
+    boolean existsByRiderIdAndEndedAtIsNull(Long riderId);
+    boolean existsByScooterIdAndEndedAtIsNull(Long scooterId);
+
     @Query("SELECT t.scooterId FROM Trip t WHERE t.id = :id")
     Optional<Long> findScooterIdById(Long id);
 

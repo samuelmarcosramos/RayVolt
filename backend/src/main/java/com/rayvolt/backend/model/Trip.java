@@ -11,6 +11,7 @@ import java.time.Instant;
 public class Trip {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    private Long riderId;
     private Long scooterId;
     private Instant startedAt;
     private Long startHubId;
@@ -42,6 +43,17 @@ public class Trip {
         this.maxMinutes = maxMinutes;
         this.overtimeRate = overtimeRate;
     }
+
+    public Trip(Long riderId, Long scooterId, Instant startedAt, Long startHubId, double startOdometerKm,
+            int maxMinutes, BigDecimal overtimeRate) {
+        this(scooterId, startedAt, startHubId, startOdometerKm, maxMinutes, overtimeRate);
+        if (riderId == null || riderId <= 0) {
+            throw new IllegalArgumentException("Rider ID must be positive");
+        }
+        this.riderId = riderId;
+    }
+
+    public Long getRiderId() { return riderId; }
 
     public void requireActive() {
         if (endedAt != null) {
